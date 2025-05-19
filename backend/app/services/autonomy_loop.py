@@ -13,7 +13,7 @@ def run_autonomous_agent(system_prompt: str, user_goal: str, max_steps: int = 5)
 
     tools = get_tool_definitions()
 
-    for step in range(max_steps):
+    for step in range(max_șteps):
         print(f"\n🔁 Step {step + 1}: Sending to OpenAI")
 
         response = openai_client.chat.completions.create( # USING THE SHARED CLIENT

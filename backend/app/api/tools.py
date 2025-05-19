@@ -1,4 +1,4 @@
-# backend/app/api/tool.py
+# backend/app/api/tools.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.models.user import User
 from app.core.auth import get_current_user
@@ -16,7 +16,7 @@ async def list_available_tools(user: User = Depends(get_current_user)):
     """Endpoint to list all available tools"""
     try:
         tools = get_tool_definitions()
-        return {"tools": [tool["function"]["name"] for tool in tools]}
+        return {"tools": [tool["definition"]["name"] for tool in tools]}
     except Exception as e:
         logger.error(f"Failed to list available tools for user {user.id}: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -28,7 +28,7 @@ async def list_available_tools(user: User = Depends(get_current_user)):
 async def run_specific_tool(tool_name: str, request: RunToolRequest, user: User = Depends(get_current_user)):
     """Endpoint to run a specific tool"""
     try:
-        result = call_tool(tool_name, request.args)
+        result = await call_tool(tool_name, request.args)
         return {"result": result}
     except ValueError as ve:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))

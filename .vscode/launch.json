@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "python": "/Users/vardaanarora/ai_generator/.venv/bin/python",
+            "envFile": "${workspaceFolder}/.env" // Add this line
+        }
+    ]
+}

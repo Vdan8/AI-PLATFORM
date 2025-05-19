@@ -9,6 +9,8 @@ from app.core.config import settings
 from passlib.context import CryptContext
 import uuid
 from app.models.base import get_db  # Import get_db here
+from typing import Callable, Any
+from fastapi import Request
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
@@ -63,3 +65,28 @@ async def get_current_user(
     if not user:
         raise credentials_exception
     return user
+
+def has_role(allowed_roles: list) -> Callable[[Request, User, Session], Any]:
+    """
+    Checks if the user has any of the allowed roles.
+
+    Args:
+        allowed_roles (list): A list of roles that are allowed.
+
+    Returns:
+        Callable: A dependency that can be used in FastAPI routes.
+    """
+    async def dependency(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+        if not current_user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+        # Assuming you have a 'role' attribute on your User model
+        user_role = current_user.role  # Adjust this based on your actual User model
+
+        if user_role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Insufficient permissions.  Requires one of roles: {allowed_roles}",
+            )
+        return current_user
+    return dependency

@@ -73,7 +73,7 @@ def run_migrations_online():
     
     db_config = config.get_section(config.config_ini_section, {})
     print(f"DEBUG: DATABASE_URL from settings in env.py is: {settings.DATABASE_URL!r}")
-    db_config["sqlalchemy.url"] = settings.DATABASE_URL # Use our settings for the URL
+    db_config["sqlalchemy.url"] = settings.alembic_url
     connectable = engine_from_config(
         db_config,
         prefix="sqlalchemy.",

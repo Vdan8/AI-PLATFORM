@@ -1,11 +1,15 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import auth, agent, routes, job, tools  # Import all routers
-from app.services.tool_loader import tool_loader
-from app.core.config import settings
+from .api import auth, agent, routes, job, tools  # Import all routers
+from .services import tool_loader
+from .core.config import settings
 import logging
 from typing import Dict, Any
+from app.services.sandbox_service import initialize_sandbox, shutdown_sandbox
+from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy import text
 
 # Configure logging
 logging.basicConfig(
@@ -13,6 +17,9 @@ logging.basicConfig(
     level=logging.INFO if settings.ENVIRONMENT == "prod" else logging.DEBUG
 )
 logger = logging.getLogger(__name__)
+
+# Create a global AsyncEngine instance
+async_engine: AsyncEngine | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,7 +39,10 @@ async def lifespan(app: FastAPI):
             raise RuntimeError(f"Missing critical tools: {missing}")
 
         # 3. Warm connections (DB, APIs)
-        await warmup_connections(tools)
+        await warmup_connections()
+
+        # 4. Initialize the sandbox
+        await initialize_sandbox()
 
         # Store in app state
         app.state.tools = tools
@@ -42,19 +52,32 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.critical(f"🛑 Startup failed: {str(e)}")
         raise
+
     finally:
         # ================== Shutdown Logic ==================
         logger.info("🛑 Shutting down...")
-        # Add cleanup logic here if needed
 
-async def warmup_connections(tools: Dict[str, Any]):
+        # 5. Shutdown the sandbox
+        await shutdown_sandbox()
+
+        # Clean up resources
+        global async_engine
+        if async_engine:
+            await async_engine.dispose()
+
+        logger.info("👋 Application shutdown")
+
+async def warmup_connections():
     """Initialize connections for stateful tools"""
-    if "database" in tools:
-        try:
-            await tools["database"]["function"]({"action": "ping"})
-            logger.debug("🏓 Database ping successful")
-        except Exception as e:
-            logger.warning(f"Database warmup failed: {str(e)}")
+    global async_engine
+    try:
+        # Warm up database connection
+        async_engine = create_async_engine(settings.DATABASE_URL, echo=False)
+        async with async_engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.debug("🏓 Database ping successful")
+    except Exception as e:
+        logger.warning(f"Database warmup failed: {str(e)}")
 
 app = FastAPI(
     title="AI Employee Generator",

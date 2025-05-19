@@ -7,7 +7,7 @@ from typing import AsyncGenerator, Any  # Import AsyncGenerator
 
 SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
 
-async_engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=False)
+async_engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=False , pool_pre_ping=True,future=True) # Use the 2.0 style
 
 Base = declarative_base(cls=AsyncAttrs)
 
