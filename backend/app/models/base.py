@@ -1,19 +1,16 @@
 # app/models/base.py
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncAttrs
 from app.core.config import settings
+from typing import AsyncGenerator, Any  # Import AsyncGenerator
 
-Base = declarative_base()
+SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
 
-# Database engine and session factory
-engine = create_engine(settings.DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+async_engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=False)
 
-def get_db():
-    """FastAPI dependency for database sessions"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+Base = declarative_base(cls=AsyncAttrs)
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:  # Use AsyncGenerator
+    async with AsyncSession(async_engine, expire_on_commit=False) as session:
+        yield session

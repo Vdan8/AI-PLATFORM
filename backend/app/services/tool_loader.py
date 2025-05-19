@@ -64,7 +64,7 @@ class ToolLoader:
                 
                 tool_name = metadata["name"] if metadata else tool_file.stem
                 tools[tool_name] = {
-                    "function": getattr(module, "execute", getattr(module, "run")),
+                    "function": getattr(module, "execute", None) or getattr(module, "run"),
                     "metadata": metadata or {"name": tool_name},
                     "module": module_name
                 }

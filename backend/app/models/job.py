@@ -22,9 +22,9 @@ class JobHistory(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    # user = relationship("User") # Add back_populates in User model later
-    # agent_config = relationship("AgentConfiguration", back_populates="job_history")
-    # task_logs = relationship("TaskLog", back_populates="job")
+    user = relationship("User") # Add back_populates in User model later
+    agent_config = relationship("AgentConfiguration", back_populates="job_history")
+    task_logs = relationship("TaskLog", back_populates="job")
 
     def __repr__(self):
         return f"<JobHistory(id={self.id}, status=\'{self.status}\')>"

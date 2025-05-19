@@ -12,3 +12,7 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    refresh_token: str = None  # Include refresh token in the response
+
+class RefreshToken(BaseModel):
+    refresh_token: str

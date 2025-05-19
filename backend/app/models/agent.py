@@ -22,7 +22,7 @@ class AgentConfiguration(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationship to JobHistory
-    # job_history = relationship("JobHistory", back_populates="agent_config")
+    job_history = relationship("JobHistory", back_populates="agent_config")
 
     def __repr__(self):
         return f"<AgentConfiguration(id={self.id}, name=\'{self.name}\')>"

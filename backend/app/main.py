@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.auth import router as auth_router
+from app.api import auth, agent, routes, job, tools  # Import all routers
 from app.services.tool_loader import tool_loader
 from app.core.config import settings
 import logging
@@ -19,26 +19,26 @@ async def lifespan(app: FastAPI):
     """Modern FastAPI 2.0+ lifespan manager"""
     # ==================== Startup Logic ====================
     logger.info("🚀 Starting application...")
-    
+
     try:
         # 1. Load tools
         tools: Dict[str, Any] = tool_loader.load_tools()
         logger.info(f"✅ Loaded {len(tools)} tools")
-        
+
         # 2. Verify critical tools
         required_tools = getattr(settings, "CRITICAL_TOOLS", [])
         missing = [t for t in required_tools if t not in tools]
         if missing:
             raise RuntimeError(f"Missing critical tools: {missing}")
-        
+
         # 3. Warm connections (DB, APIs)
         await warmup_connections(tools)
-        
+
         # Store in app state
         app.state.tools = tools
-        
+
         yield  # ============ Application Runs Here ============
-        
+
     except Exception as e:
         logger.critical(f"🛑 Startup failed: {str(e)}")
         raise
@@ -65,7 +65,7 @@ app = FastAPI(
     redoc_url=None
 )
 
-# Middleware (unchanged from your original)
+# Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -75,7 +75,11 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth_router)
+app.include_router(auth.router)
+app.include_router(routes.router)
+app.include_router(agent.router)
+app.include_router(job.router)
+app.include_router(tools.router)
 
 # ==================== Endpoints ====================
 @app.get("/")

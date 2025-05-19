@@ -8,7 +8,7 @@ class TaskLog(Base):
     __tablename__ = "task_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    job_id = Column(Integer, ForeignKey("job_history.id"), nullable=False)
+    job_id = Column(Integer, ForeignKey("job_history.id"), nullable=False, index=True)
     # user_id = Column(Integer, ForeignKey("users.id"), nullable=False) # Optional, can be inferred via job_id
     
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
@@ -17,7 +17,7 @@ class TaskLog(Base):
     details = Column(JSON, nullable=True) # For structured log data like tool args/results
 
     # Relationship
-    # job = relationship("JobHistory", back_populates="task_logs")
+    job = relationship("JobHistory", back_populates="task_logs")
 
     def __repr__(self):
         return f"<TaskLog(id={self.id}, job_id={self.job_id}, level=\'{self.log_level}\')>"
