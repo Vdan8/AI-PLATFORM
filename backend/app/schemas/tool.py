@@ -10,7 +10,6 @@ class ToolParameter(BaseModel):
     name: str = Field(..., description="The name of the parameter.")
     type: str = Field(..., description="The data type of the parameter (e.g., 'string', 'integer', 'boolean', 'array', 'object').")
     description: str = Field(..., description="A description of the parameter's purpose.")
-    optional: bool = Field(False, description="True if this parameter is optional, False otherwise. Defaults to False (required).")
     required: bool = Field(False, description="Whether the parameter is required for the tool call.")
     # For more complex types like arrays or objects, you might need 'items' or 'properties'
     items: Optional[Dict[str, Any]] = Field(None, description="Schema for items if the parameter is an array.")

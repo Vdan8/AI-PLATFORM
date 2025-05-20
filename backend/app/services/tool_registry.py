@@ -3,9 +3,11 @@ import logging
 from typing import List, Dict, Any, Optional
 from uuid import uuid4 # For better call_id generation
 
-from app.services.tool_loader import tool_loader_service # Assuming this service exists and works
-from app.services.sandbox_service import sandbox_service # Assuming this service exists and works
-from app.schemas.tool import MCPToolCall, MCPToolResponse, MCPToolDefinition, MCPToolParameter # Import MCPToolParameter
+# Assuming these services/schemas are correctly defined and exist at these paths
+from app.services.tool_loader import tool_loader_service
+from app.services.sandbox_service import sandbox_service
+# Corrected import: MCPToolParameter -> ToolParameter
+from app.schemas.tool import MCPToolCall, MCPToolResponse, MCPToolDefinition, ToolParameter
 from sqlalchemy.ext.asyncio import AsyncSession # For type hinting the db session
 
 logger = logging.getLogger(__name__)
@@ -17,7 +19,7 @@ class ToolRegistryService:
     and delegating execution to the sandbox.
     """
     def __init__(self):
-        # Services that ToolRegistryService depends on
+        # Services that ToolRegistryService depends on (injected as singletons)
         self.tool_loader = tool_loader_service
         self.sandbox = sandbox_service
 
@@ -28,7 +30,7 @@ class ToolRegistryService:
         """
         try:
             # Use the tool_loader_service to get MCPToolDefinition objects
-            mcp_tool_definitions: List[MCPToolDefinition] = await self.tool_loader.get_all_tool_definitions(db)
+            mcp_tool_definitions: List[MCPToolDefinition] = await self.tool_loader.get_all_tool_definitions_for_llm(db)
 
             if not isinstance(mcp_tool_definitions, list):
                 logger.warning(
@@ -45,17 +47,40 @@ class ToolRegistryService:
                     for param in mcp_tool.parameters:
                         # Ensure 'type' is a valid JSON schema type (e.g., 'string', 'integer', 'boolean')
                         json_type = param.type.lower()
-                        if json_type == 'int': json_type = 'integer'
-                        elif json_type == 'bool': json_type = 'boolean'
-                        elif json_type == 'float': json_type = 'number'
-                        # Add more type mappings if your MCPToolParameter.type can be complex like 'list' or 'dict'
-                        # For complex types, you'd define their schema more elaborately.
+                        if json_type == 'int':
+                            json_type = 'integer'
+                        elif json_type == 'bool':
+                            json_type = 'boolean'
+                        elif json_type == 'float':
+                            json_type = 'number'
+                        elif json_type == 'list':
+                            # For list, define as an array with default string items.
+                            # Adjust 'items' type if you have specific list item types.
+                            parameters_properties[param.name] = {
+                                "type": "array",
+                                "description": param.description or f"List of {param.name}",
+                                "items": {"type": "string"} # Default item type, can be more specific
+                            }
+                            # Skip adding to parameters_properties with a simple type if it's a list/dict
+                            continue # Move to next parameter after handling complex type
+                        elif json_type == 'dict':
+                            # For dict, define as an object.
+                            # You might need to define 'properties' if the structure is known.
+                            parameters_properties[param.name] = {
+                                "type": "object",
+                                "description": param.description or f"Dictionary for {param.name}",
+                                "properties": {} # Define sub-properties here if structure is known
+                            }
+                            continue # Move to next parameter after handling complex type
 
+                        # Default handling for primitive types (string, integer, boolean, number)
                         parameters_properties[param.name] = {
                             "type": json_type,
                             "description": param.description or f"Parameter for {param.name}",
                         }
-                        if not param.optional: # If not optional, it's required
+
+                        # Corrected logic: Use param.required directly
+                        if param.required:
                             parameters_required.append(param.name)
 
                 # Ensure 'parameters' object is only included if there are properties or required fields
@@ -98,7 +123,8 @@ class ToolRegistryService:
 
         response: MCPToolResponse = await self.sandbox.run_tool_in_sandbox(tool_call)
 
-        if response.success: # Check the 'success' boolean flag
+        # Corrected: Check response.status == "success" instead of non-existent response.success
+        if response.status == "success":
             try:
                 # Attempt to parse output as JSON, but handle non-JSON strings
                 parsed_output = json.loads(response.output)
@@ -134,15 +160,33 @@ class ToolRegistryService:
             if mcp_tool.parameters:
                 for param in mcp_tool.parameters:
                     json_type = param.type.lower()
-                    if json_type == 'int': json_type = 'integer'
-                    elif json_type == 'bool': json_type = 'boolean'
-                    elif json_type == 'float': json_type = 'number'
+                    if json_type == 'int':
+                        json_type = 'integer'
+                    elif json_type == 'bool':
+                        json_type = 'boolean'
+                    elif json_type == 'float':
+                        json_type = 'number'
+                    elif json_type == 'list':
+                        parameters_properties[param.name] = {
+                            "type": "array",
+                            "description": param.description or f"List of {param.name}",
+                            "items": {"type": "string"} # Default item type, can be more specific
+                        }
+                        continue
+                    elif json_type == 'dict':
+                        parameters_properties[param.name] = {
+                            "type": "object",
+                            "description": param.description or f"Dictionary for {param.name}",
+                            "properties": {} # Define sub-properties here if structure is known
+                        }
+                        continue
 
                     parameters_properties[param.name] = {
                         "type": json_type,
                         "description": param.description or f"Parameter for {param.name}",
                     }
-                    if not param.optional:
+                    # Corrected logic: Use param.required directly
+                    if param.required:
                         parameters_required.append(param.name)
 
             parameters_schema = {

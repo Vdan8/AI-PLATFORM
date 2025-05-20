@@ -139,3 +139,91 @@ AttributeError: module 'os' has no attribute 'stderr'
 2025-05-20 18:37:13,370 - app.utils.logger - INFO - ✅ Docker client initialized successfully
 2025-05-20 18:37:13,370 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
 2025-05-20 18:42:41,394 - app.utils.logger - INFO - 👋 Docker client shut down.
+{"timestamp": "2025-05-21T02:55:23.130377", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T02:55:24.786415", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: TypeError: 'ToolRegistryService' object is not callable\"}", "context": null}
+{"timestamp": "2025-05-21T02:55:24.786887", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T02:55:25.250722", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T02:55:26.996129", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: TypeError: 'ToolRegistryService' object is not callable\"}", "context": null}
+{"timestamp": "2025-05-21T02:55:26.996501", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T02:57:29.488504", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T02:57:31.006814", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: AttributeError: 'ToolRegistryService' object has no attribute 'get_all_tool_definitions'\"}", "context": null}
+{"timestamp": "2025-05-21T02:57:31.007076", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T02:57:31.500308", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T02:57:32.926268", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: AttributeError: 'ToolRegistryService' object has no attribute 'get_all_tool_definitions'\"}", "context": null}
+{"timestamp": "2025-05-21T02:57:32.926587", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:00:32.788930", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:00:34.426228", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: AttributeError: 'ToolRegistryService' object has no attribute 'get_all_tool_definitions'\"}", "context": null}
+{"timestamp": "2025-05-21T03:00:34.426493", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:00:34.925849", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:00:36.450417", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: AttributeError: 'ToolRegistryService' object has no attribute 'get_all_tool_definitions'\"}", "context": null}
+{"timestamp": "2025-05-21T03:00:36.450767", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:02:12.775270", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:02:14.283646", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: NameError: name 'all_loaded_tools' is not defined\"}", "context": null}
+{"timestamp": "2025-05-21T03:02:14.283942", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:02:14.774195", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:02:16.605945", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: AttributeError: 'ToolLoaderService' object has no attribute 'get_all_tool_definitions'\"}", "context": null}
+{"timestamp": "2025-05-21T03:02:16.606250", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:02:17.087932", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:02:18.499687", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: AttributeError: 'ToolLoaderService' object has no attribute 'get_all_tool_definitions'\"}", "context": null}
+{"timestamp": "2025-05-21T03:02:18.499884", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:09:02.723644", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:09:04.278606", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: NameError: name 'db' is not defined\"}", "context": null}
+{"timestamp": "2025-05-21T03:09:04.278870", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:09:04.735316", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:09:06.214798", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: NameError: name 'db' is not defined\"}", "context": null}
+{"timestamp": "2025-05-21T03:09:06.215201", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:09:18.731550", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:09:20.074454", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: TypeError: ToolRegistryService.get_all_tool_definitions_for_llm() missing 1 required positional argument: 'db'\"}", "context": null}
+{"timestamp": "2025-05-21T03:09:20.074849", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:09:20.559867", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:09:21.988360", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: AttributeError: 'ToolLoaderService' object has no attribute 'get_all_tool_definitions'\"}", "context": null}
+{"timestamp": "2025-05-21T03:09:21.988647", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:09:22.484352", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:09:23.934428", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: AttributeError: 'ToolLoaderService' object has no attribute 'get_all_tool_definitions'\"}", "context": null}
+{"timestamp": "2025-05-21T03:09:23.934846", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:11:52.470151", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:11:53.982206", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: NameError: name 'db' is not defined\"}", "context": null}
+{"timestamp": "2025-05-21T03:11:53.982497", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:12:18.225928", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:12:19.613952", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: NameError: name 'db' is not defined\"}", "context": null}
+{"timestamp": "2025-05-21T03:12:19.614210", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:12:20.101167", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:12:21.436554", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: NameError: name 'db' is not defined\"}", "context": null}
+{"timestamp": "2025-05-21T03:12:21.436853", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:12:21.936986", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:12:23.299391", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: NameError: name 'db' is not defined\"}", "context": null}
+{"timestamp": "2025-05-21T03:12:23.299567", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:21.417377", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:22.919246", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: TypeError: ToolRegistryService.get_all_tool_definitions_for_llm() missing 1 required positional argument: 'db'\"}", "context": null}
+{"timestamp": "2025-05-21T03:13:22.919583", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:23.430118", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:25.899084", "level": "INFO", "message": "{'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}", "context": null}
+{"timestamp": "2025-05-21T03:13:26.359244", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:28.756786", "level": "INFO", "message": "{'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}", "context": null}
+{"timestamp": "2025-05-21T03:13:38.096986", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:38.775983", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:40.627176", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: TypeError: ToolLoaderService.get_all_tool_definitions_for_llm() missing 1 required positional argument: 'db'\"}", "context": null}
+{"timestamp": "2025-05-21T03:13:40.627452", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:41.126683", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:42.757058", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: NameError: name 'session' is not defined\"}", "context": null}
+{"timestamp": "2025-05-21T03:13:42.757400", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:47.686397", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:49.207815", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: TypeError: ToolLoaderService.get_all_tool_definitions_for_llm() missing 1 required positional argument: 'db'\"}", "context": null}
+{"timestamp": "2025-05-21T03:13:49.208576", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:49.690319", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:52.188764", "level": "INFO", "message": "{'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}", "context": null}
+{"timestamp": "2025-05-21T03:13:52.630260", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:13:55.299086", "level": "INFO", "message": "{'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}", "context": null}
+{"timestamp": "2025-05-21T03:17:15.618930", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:17:17.437531", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:17:18.967736", "level": "INFO", "message": "{'event_type': 'app_startup_failure', 'reason': \"\ud83d\uded1 Application startup failed: NameError: name 'session' is not defined\"}", "context": null}
+{"timestamp": "2025-05-21T03:17:18.968007", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:17:24.938489", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:17:27.670661", "level": "INFO", "message": "{'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}", "context": null}
+{"timestamp": "2025-05-21T03:17:28.127744", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:17:30.463824", "level": "INFO", "message": "{'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}", "context": null}
+{"timestamp": "2025-05-21T03:24:28.428191", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T03:24:30.958922", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:24:32.514059", "level": "INFO", "message": "{'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}", "context": null}
+{"timestamp": "2025-05-21T03:24:32.959613", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T03:24:34.519181", "level": "INFO", "message": "{'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}", "context": null}

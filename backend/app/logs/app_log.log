@@ -1,3 +1,91 @@
 2025-05-21 00:19:24,971 - app.utils.logger - INFO - ✅ Docker client initialized successfully
 2025-05-21 00:19:24,971 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
 2025-05-21 00:19:52,749 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-21 02:55:23,130 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 02:55:24,786 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: TypeError: 'ToolRegistryService' object is not callable"}: null
+2025-05-21 02:55:24,786 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 02:55:25,250 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 02:55:26,996 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: TypeError: 'ToolRegistryService' object is not callable"}: null
+2025-05-21 02:55:26,996 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 02:57:29,489 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 02:57:31,006 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: AttributeError: 'ToolRegistryService' object has no attribute 'get_all_tool_definitions'"}: null
+2025-05-21 02:57:31,007 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 02:57:31,500 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 02:57:32,926 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: AttributeError: 'ToolRegistryService' object has no attribute 'get_all_tool_definitions'"}: null
+2025-05-21 02:57:32,926 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:00:32,789 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:00:34,426 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: AttributeError: 'ToolRegistryService' object has no attribute 'get_all_tool_definitions'"}: null
+2025-05-21 03:00:34,426 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:00:34,925 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:00:36,450 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: AttributeError: 'ToolRegistryService' object has no attribute 'get_all_tool_definitions'"}: null
+2025-05-21 03:00:36,450 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:02:12,775 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:02:14,283 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: NameError: name 'all_loaded_tools' is not defined"}: null
+2025-05-21 03:02:14,283 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:02:14,774 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:02:16,606 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: AttributeError: 'ToolLoaderService' object has no attribute 'get_all_tool_definitions'"}: null
+2025-05-21 03:02:16,606 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:02:17,087 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:02:18,499 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: AttributeError: 'ToolLoaderService' object has no attribute 'get_all_tool_definitions'"}: null
+2025-05-21 03:02:18,499 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:09:02,724 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:09:04,278 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: NameError: name 'db' is not defined"}: null
+2025-05-21 03:09:04,278 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:09:04,735 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:09:06,215 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: NameError: name 'db' is not defined"}: null
+2025-05-21 03:09:06,215 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:09:18,731 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:09:20,074 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: TypeError: ToolRegistryService.get_all_tool_definitions_for_llm() missing 1 required positional argument: 'db'"}: null
+2025-05-21 03:09:20,074 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:09:20,559 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:09:21,988 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: AttributeError: 'ToolLoaderService' object has no attribute 'get_all_tool_definitions'"}: null
+2025-05-21 03:09:21,988 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:09:22,484 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:09:23,934 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: AttributeError: 'ToolLoaderService' object has no attribute 'get_all_tool_definitions'"}: null
+2025-05-21 03:09:23,934 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:11:52,471 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:11:53,982 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: NameError: name 'db' is not defined"}: null
+2025-05-21 03:11:53,982 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:12:18,226 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:12:19,614 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: NameError: name 'db' is not defined"}: null
+2025-05-21 03:12:19,614 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:12:20,101 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:12:21,436 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: NameError: name 'db' is not defined"}: null
+2025-05-21 03:12:21,436 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:12:21,937 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:12:23,299 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: NameError: name 'db' is not defined"}: null
+2025-05-21 03:12:23,299 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:13:21,417 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:13:22,919 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: TypeError: ToolRegistryService.get_all_tool_definitions_for_llm() missing 1 required positional argument: 'db'"}: null
+2025-05-21 03:13:22,919 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:13:23,430 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:13:25,899 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}: null
+2025-05-21 03:13:26,359 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:13:28,757 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}: null
+2025-05-21 03:13:38,097 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:13:38,776 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:13:40,627 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: TypeError: ToolLoaderService.get_all_tool_definitions_for_llm() missing 1 required positional argument: 'db'"}: null
+2025-05-21 03:13:40,627 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:13:41,126 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:13:42,757 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: NameError: name 'session' is not defined"}: null
+2025-05-21 03:13:42,757 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:13:47,686 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:13:49,207 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: TypeError: ToolLoaderService.get_all_tool_definitions_for_llm() missing 1 required positional argument: 'db'"}: null
+2025-05-21 03:13:49,208 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:13:49,690 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:13:52,189 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}: null
+2025-05-21 03:13:52,630 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:13:55,299 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}: null
+2025-05-21 03:17:15,619 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:17:17,437 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:17:18,967 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_failure', 'reason': "🛑 Application startup failed: NameError: name 'session' is not defined"}: null
+2025-05-21 03:17:18,968 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:17:24,938 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:17:27,671 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}: null
+2025-05-21 03:17:28,127 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:17:30,464 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}: null
+2025-05-21 03:24:28,429 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Application is shutting down.'}: null
+2025-05-21 03:24:30,958 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:24:32,514 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}: null
+2025-05-21 03:24:32,959 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 03:24:34,519 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}: null
