@@ -1,7 +1,7 @@
 from app.core.config import settings
 from app.core.clients import openai_client
 from app.services.tool_registry import get_tool_definitions, call_tool
-from app.utils.logger import log_trace
+from app.utils.logger import trace_logger_instance
 import json
 
 
@@ -13,11 +13,11 @@ def run_autonomous_agent(system_prompt: str, user_goal: str, max_steps: int = 5)
 
     tools = get_tool_definitions()
 
-    for step in range(max_șteps):
+    for step in range(max_steps):
         print(f"\n🔁 Step {step + 1}: Sending to OpenAI")
 
         response = openai_client.chat.completions.create( # USING THE SHARED CLIENT
-        model=settings.DEFAULT_GPT_MODEL,
+        model=settings.LLM_MODEL,
             messages=messages,
             tools=tools,
             tool_choice="auto"
@@ -49,7 +49,7 @@ def run_autonomous_agent(system_prompt: str, user_goal: str, max_steps: int = 5)
                 })
 
                 # Trace log the tool call
-                log_trace({
+                trace_logger_instance({
                     "step": step + 1,
                     "type": "tool_call",
                     "tool_name": name,
@@ -70,7 +70,7 @@ def run_autonomous_agent(system_prompt: str, user_goal: str, max_steps: int = 5)
             })
 
             # Trace log final reply
-            log_trace({
+            trace_logger_instance({
                 "step": step + 1,
                 "type": "final_reply",
                 "content": content

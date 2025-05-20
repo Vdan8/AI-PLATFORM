@@ -1,144 +1,182 @@
-# backend/app/main.py
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-# CORRECTED IMPORT: Now importing 'tools' (plural) as confirmed
-from .api import auth, agent, routes, job, tools # Import 'tools' (plural)
-
-from app.services.tool_loader import tool_loader_service
-from .core.config import settings
 import logging
-from typing import Dict, Any
-from app.services.sandbox_service import initialize_sandbox, shutdown_sandbox
-from sqlalchemy.ext.asyncio import AsyncEngine
-from sqlalchemy.ext.asyncio import create_async_engine
+from contextlib import asynccontextmanager
+from typing import Dict, Any, List # Added List for type hints
+
+from fastapi import FastAPI, HTTPException, status # Added status for cleaner HTTP error codes
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-import json # Added to handle potential JSON parsing of tool output in call_tool
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSession # Added AsyncSession
+from tenacity import retry, stop_after_attempt, wait_fixed, before_log # Import retry decorators
 
-# NEW: Import the tool_registry functions to potentially use them in lifespan if needed
-from app.services.tool_registry import get_tool_definitions, get_single_tool_definition_for_llm
+from app.api import agent # Assuming this is your primary agent router
+# Remove auth, routes, job, tools imports unless you have corresponding files and they are fully functional
+# from app.api import auth, routes, job, tools
 
+from app.core.config import settings
+from app.models.base import Base # For metadata.create_all
+from app.models.base import get_db # To get a DB session for startup tasks
+from app.utils.logger import trace_logger_service # Corrected logger import
+from app.services.sandbox_service import initialize_sandbox, shutdown_sandbox
+from app.services.tool_registry import tool_registry_service # Use the service directly
 
-# Configure logging
+# --- Logger Setup ---
+trace_logger = trace_logger_service() # Get the global trace logger instance
+
+# Configure standard Python logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO if settings.ENVIRONMENT == "prod" else logging.DEBUG
+    level=logging.INFO if settings.ENVIRONMENT == "prod" else logging.DEBUG,
+    # Direct logging to console for Uvicorn logs, trace_logger handles file logging
+    handlers=[logging.StreamHandler()]
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) # Get a standard logger for main.py specific logs
 
-# Create a global AsyncEngine instance
+# --- Global AsyncEngine (FastAPI app.state is often preferred for managing shared resources) ---
+# It's often better to store global state like the engine on app.state
+# However, for engine, a global variable is also common. Let's keep it global for now
+# but ensure it's properly managed in lifespan.
 async_engine: AsyncEngine | None = None
 
+# --- Lifespan Context Manager ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Modern FastAPI 2.0+ lifespan manager"""
-    # ==================== Startup Logic ====================
-    logger.info("🚀 Starting application...")
+    """
+    Handles application startup and shutdown events.
+    Initializes critical services and database connections.
+    """
+    logger.info("🚀 Application startup initiated.")
+    # Log startup event to trace
+    await trace_logger.log_event(event_type="app_startup", payload={"message": "Application is starting up."})
+
+    global async_engine 
 
     try:
-        # 1. Warm connections (DB, APIs)
-        await warmup_connections()
+        # 1. Initialize Database Engine and Perform Warmup Connection
+        logger.info("Connecting to database...")
+        async_engine = create_async_engine(settings.DATABASE_URL, echo=False)
+        # Use a retry mechanism for DB connection for robustness
+        await _retry_db_connection(async_engine)
+        logger.info("✅ Database connection successful.")
 
-        # 2. Initialize the sandbox service (Docker client etc.)
+        # 2. Create Database Tables (if not exist)
+        logger.info("Ensuring database tables are created...")
+        async with async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("✅ Database tables ensured.")
+
+        # 3. Initialize Sandbox Service
+        logger.info("Initializing sandbox service...")
         await initialize_sandbox()
+        logger.info("✅ Sandbox service initialized.")
 
-        # 3. Optional: Perform an initial fetch or validation of tools from DB
-        #    This replaces the old tool_loader.load_tools()
-        #    You might want to fetch all tools and store them in app.state for quick access
-        #    or just verify that critical tools exist in the DB.
+        # 4. Load and Verify Tools from Database
+        logger.info("Loading and verifying tools from database...")
+        # Get a DB session for lifespan context
+        async with get_db() as session:
+            tool_registry_service = tool_registry_service(db=session)
+            all_loaded_tools = await tool_registry_service.get_all_tool_definitions() # Use the service method
 
-        # Example: Fetch all tool definitions for validation/initial priming
-        # You'll need to use the tool_loader_service (via tool_registry's get_tool_definitions)
-        # Note: get_tool_definitions now directly pulls from the DB.
-        all_loaded_tools = await get_tool_definitions()
+            # Store tool definitions in app.state for easy access by other parts of the app if needed
+            # This makes app.state.tools a dict mapping tool_name to its MCPToolDefinition object
+            app.state.tools: Dict[str, Any] = {tool.name: tool for tool in all_loaded_tools}
 
-        # Store a simplified dictionary of tool names for app.state.tools for compatibility
-        # (This just gets the names, not the full tool objects/metadata from the old system)
-        # If your frontend/other parts of your app depend on app.state.tools having the full dict
-        # then you'd need to adapt this more deeply. For now, it's a basic list of names.
-        app.state.tools = {tool['function']['name']: tool for tool in all_loaded_tools}
+            required_tools: List[str] = getattr(settings, "CRITICAL_TOOLS", []) # Use type hint
+            missing_critical_tools = [t_name for t_name in required_tools if t_name not in app.state.tools]
 
+            if missing_critical_tools:
+                error_msg = f"🛑 Missing critical tools: {', '.join(missing_critical_tools)}. Application will not start."
+                logger.critical(error_msg)
+                await trace_logger.log_event(event_type="app_startup_failure", payload={"reason": error_msg})
+                raise RuntimeError(error_msg) # Fail fast if critical tools are missing
 
-        # 4. Verify critical tools (now checks against DB-loaded tools)
-        required_tools = getattr(settings, "CRITICAL_TOOLS", [])
-        missing = [t_name for t_name in required_tools if t_name not in app.state.tools]
-        if missing:
-            raise RuntimeError(f"Missing critical tools: {missing}")
+            logger.info(f"✅ Loaded {len(app.state.tools)} tools from database and verified critical tools.")
+            await trace_logger.log_event(
+                event_type="app_startup_success",
+                payload={"message": "Application startup complete.", "tools_loaded_count": len(app.state.tools)}
+            )
+            logger.info("✅ Application startup complete.")
 
-        logger.info(f"✅ Loaded {len(app.state.tools)} tools from database and verified critical tools.")
-        logger.info("✅ Application startup complete.")
-
-        yield  # ============ Application Runs Here ============
+            yield  # Application runs here
 
     except Exception as e:
-        logger.critical(f"🛑 Startup failed: {str(e)}")
-        raise # Re-raise to make sure Uvicorn reports failure
+        error_details = f"🛑 Application startup failed: {e.__class__.__name__}: {e}"
+        logger.critical(error_details, exc_info=True) # Log full traceback
+        await trace_logger.log_event(event_type="app_startup_failure", payload={"reason": error_details})
+        raise # Re-raise the exception to indicate startup failure to Uvicorn/FastAPI
 
     finally:
-        # ================== Shutdown Logic ==================
-        logger.info("🛑 Shutting down...")
+        # --- Shutdown Logic ---
+        logger.info("👋 Application shutdown initiated.")
+        await trace_logger.log_event(event_type="app_shutdown", payload={"message": "Application is shutting down."})
 
-        # 5. Shutdown the sandbox
+        # 1. Shutdown Sandbox
+        logger.info("Shutting down sandbox service...")
         await shutdown_sandbox()
+        logger.info("✅ Sandbox service shut down.")
 
-        # Clean up resources
-        global async_engine
+        # 2. Dispose Database Engine
         if async_engine:
+            logger.info("Disposing database engine...")
             await async_engine.dispose()
+            logger.info("✅ Database engine disposed.")
 
-        logger.info("👋 Application shutdown")
+        logger.info("👋 Application shutdown complete.")
 
-async def warmup_connections():
-    """Initialize connections for stateful tools"""
-    global async_engine
-    try:
-        # Warm up database connection
-        async_engine = create_async_engine(settings.DATABASE_URL, echo=False)
-        async with async_engine.begin() as conn:
-            await conn.execute(text("SELECT 1"))
-        logger.debug("🏓 Database ping successful")
-    except Exception as e:
-        logger.warning(f"Database warmup failed: {str(e)}")
 
+# --- Database Connection Retry Logic ---
+@retry(stop=stop_after_attempt(settings.DB_RETRY_ATTEMPTS),
+       wait=wait_fixed(settings.DB_RETRY_DELAY),
+       before_log=before_log(logger, logging.WARNING),
+       reraise=True)
+async def _retry_db_connection(engine: AsyncEngine):
+    """Retries database connection and table creation for robustness."""
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
+
+
+# --- FastAPI App Initialization ---
 app = FastAPI(
     title="AI Employee Generator",
-    description="Production-ready AI agent platform",
+    description="A production-ready platform for dynamic AI agent operations, including tool generation and sandboxed execution.",
     version="1.0.0",
-    lifespan=lifespan,  # FastAPI 2.0+ lifespan manager
-    docs_url="/docs" if settings.ENVIRONMENT == "dev" else None,
-    redoc_url=None
+    lifespan=lifespan,
+    docs_url="/docs" if settings.ENVIRONMENT == "dev" else None, # Only show docs in dev
+    redoc_url=None, # Usually not needed in production
 )
 
-# Middleware
+# --- Middleware ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Be more restrictive in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth.router)
-app.include_router(routes.router)
-app.include_router(agent.router)
-app.include_router(job.router)
-# CORRECTED ROUTER INCLUDE: Using 'tools.router' as confirmed by your filename
-app.include_router(tools.router, prefix=settings.API_V1_STR + "/tools", tags=["tools"])
+# --- Include Routers ---
+# Dynamically include routers based on your actual project structure.
+# For now, only 'agent' is confirmed and critical.
+# Ensure 'app.api.agent' exists and defines 'agent.router'.
+app.include_router(agent.router, prefix="/agent", tags=["Agent Operations"])
 
-# ==================== Endpoints ====================
-@app.get("/")
+# --- Health Check Endpoint ---
+@app.get("/", summary="Health Check", response_model=Dict[str, Any])
 async def root():
-    """Health check endpoint"""
+    """
+    Returns the status of the backend and the number of tools loaded.
+    """
     return {
         "message": "AI Employee Generator Backend is live",
         "status": "operational",
-        "tools_loaded": len(app.state.tools) # This will now be the count of tools from DB
+        "tools_loaded": len(getattr(app.state, "tools", {})) # Safely get tools count
     }
 
-@app.get("/tools")
+# --- Debug Endpoint (Dev Only) ---
+@app.get("/tools", summary="List Loaded Tools (Dev Only)", response_model=Dict[str, Any])
 async def list_tools():
-    """Debug endpoint (dev only)"""
+    """
+    Lists the names of all tools loaded from the database (for development environments only).
+    """
     if settings.ENVIRONMENT != "dev":
-        raise HTTPException(status_code=403, detail="Not available in production")
-    return {"tools": list(app.state.tools.keys())}
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not available in production.")
+    return {"tools": list(getattr(app.state, "tools", {}).keys())}

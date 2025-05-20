@@ -1,0 +1,3 @@
+2025-05-21 00:19:24,971 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-21 00:19:24,971 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-21 00:19:52,749 - app.utils.logger - INFO - 👋 Docker client shut down.
