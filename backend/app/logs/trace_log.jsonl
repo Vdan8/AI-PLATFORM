@@ -44,3 +44,98 @@
 2025-05-19 20:41:20,319 - app.utils.logger - INFO - ✅ Docker client initialized successfully
 2025-05-20 03:55:24,365 - app.utils.logger - CRITICAL - 🛑 Failed to initialize Docker client: Error while fetching server API version: ('Connection aborted.', FileNotFoundError(2, 'No such file or directory'))
 2025-05-20 04:04:49,034 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 16:42:44,970 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 16:42:44,971 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 16:42:57,503 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 16:42:57,503 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 16:43:36,184 - app.utils.logger - INFO - Received request to test tool in sandbox: hello_world_tool (Call ID: test-hello-1)
+2025-05-20 16:43:36,186 - app.utils.logger - INFO - Launching container 'tool-sandbox-test-hello-1' for tool 'hello_world_tool' (Call ID: test-hello-1)
+2025-05-20 16:43:36,711 - app.utils.logger - ERROR - An unexpected error occurred during tool 'hello_world_tool' execution: 'coroutine' object has no attribute 'decode'
+Traceback (most recent call last):
+  File "/Users/vardaanarora/ai_generator/backend/app/services/sandbox_service.py", line 160, in run_tool_in_sandbox
+    stdout = await asyncio.to_thread(container.logs, stdout=True, stderr=False).decode('utf-8')
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'coroutine' object has no attribute 'decode'
+2025-05-20 16:43:36,737 - app.utils.logger - INFO - Sandbox response for tool 'hello_world_tool': Status=error
+2025-05-20 16:43:53,382 - app.utils.logger - INFO - Received request to test tool in sandbox: simple_math_tool (Call ID: test-math-add-1)
+2025-05-20 16:43:53,382 - app.utils.logger - INFO - Launching container 'tool-sandbox-test-math-add-1' for tool 'simple_math_tool' (Call ID: test-math-add-1)
+2025-05-20 16:43:53,804 - app.utils.logger - ERROR - An unexpected error occurred during tool 'simple_math_tool' execution: 'coroutine' object has no attribute 'decode'
+Traceback (most recent call last):
+  File "/Users/vardaanarora/ai_generator/backend/app/services/sandbox_service.py", line 160, in run_tool_in_sandbox
+    stdout = await asyncio.to_thread(container.logs, stdout=True, stderr=False).decode('utf-8')
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'coroutine' object has no attribute 'decode'
+2025-05-20 16:43:53,830 - app.utils.logger - INFO - Sandbox response for tool 'simple_math_tool': Status=error
+2025-05-20 16:45:20,406 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 16:45:34,290 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 16:45:34,290 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 16:45:46,861 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 16:45:46,861 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 16:45:49,602 - app.utils.logger - INFO - Received request to test tool in sandbox: hello_world_tool (Call ID: test-hello-1)
+2025-05-20 16:45:49,603 - app.utils.logger - INFO - Launching container 'tool-sandbox-test-hello-1' for tool 'hello_world_tool' (Call ID: test-hello-1)
+2025-05-20 16:45:50,084 - app.utils.logger - INFO - Tool 'hello_world_tool' executed successfully. Output: Executing tool: hello_world_tool with arguments: {'name': 'Gemini'}
+Hello, Gemini from a sandboxed tool!
+Tool 'hello_world_tool' execution finished successfully.
+2025-05-20 16:45:50,102 - app.utils.logger - INFO - Sandbox response for tool 'hello_world_tool': Status=success
+2025-05-20 16:45:59,375 - app.utils.logger - INFO - Received request to test tool in sandbox: simple_math_tool (Call ID: test-math-add-1)
+2025-05-20 16:45:59,375 - app.utils.logger - INFO - Launching container 'tool-sandbox-test-math-add-1' for tool 'simple_math_tool' (Call ID: test-math-add-1)
+2025-05-20 16:45:59,784 - app.utils.logger - INFO - Tool 'simple_math_tool' executed successfully. Output: Executing tool: simple_math_tool with arguments: {'num1': 10, 'num2': 5, 'operation': 'add'}
+Result of 10 add 5: 15
+Tool 'simple_math_tool' execution finished successfully.
+2025-05-20 16:45:59,802 - app.utils.logger - INFO - Sandbox response for tool 'simple_math_tool': Status=success
+2025-05-20 16:47:09,916 - app.utils.logger - INFO - Received request to test tool in sandbox: failing_tool (Call ID: test-fail-1)
+2025-05-20 16:47:09,918 - app.utils.logger - INFO - Launching container 'tool-sandbox-test-fail-1' for tool 'failing_tool' (Call ID: test-fail-1)
+2025-05-20 16:47:10,293 - app.utils.logger - ERROR - Tool 'failing_tool' failed with exit code 1. Stderr: Traceback (most recent call last):
+  File "/sandbox/tool_script.py", line 52, in <module>
+    print("This tool is designed to fail.", file=os.stderr)
+                                                 ^^^^^^^^^
+AttributeError: module 'os' has no attribute 'stderr'
+2025-05-20 16:47:10,312 - app.utils.logger - INFO - Sandbox response for tool 'failing_tool': Status=error
+2025-05-20 16:48:07,546 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 16:48:21,401 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 16:48:21,402 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 16:48:34,426 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 16:48:34,426 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 16:48:34,428 - app.utils.logger - INFO - Received request to test tool in sandbox: failing_tool (Call ID: test-fail-1)
+2025-05-20 16:48:34,429 - app.utils.logger - INFO - Launching container 'tool-sandbox-test-fail-1' for tool 'failing_tool' (Call ID: test-fail-1)
+2025-05-20 16:48:34,748 - app.utils.logger - ERROR - Tool 'failing_tool' failed with exit code 1. Stderr: This tool is designed to fail.
+2025-05-20 16:48:34,766 - app.utils.logger - INFO - Sandbox response for tool 'failing_tool': Status=error
+2025-05-20 16:51:29,908 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 16:51:43,511 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 16:51:43,511 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 16:51:43,513 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 18:04:13,626 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:04:13,627 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:04:13,628 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 18:04:29,791 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:04:29,791 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:04:29,792 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 18:05:54,590 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:05:54,591 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:05:54,592 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 18:18:43,660 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:18:43,661 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:18:43,662 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 18:18:57,761 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:18:57,762 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:18:57,762 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 18:21:22,963 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:21:22,964 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:21:22,964 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 18:25:18,240 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:25:18,241 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:25:18,241 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 18:31:11,281 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:31:11,282 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:31:11,282 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 18:33:17,316 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:33:17,316 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:33:27,738 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 18:33:40,956 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:33:40,956 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:33:50,925 - app.utils.logger - INFO - 👋 Docker client shut down.
+2025-05-20 18:36:48,873 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:36:48,874 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:37:13,370 - app.utils.logger - INFO - ✅ Docker client initialized successfully
+2025-05-20 18:37:13,370 - app.utils.logger - INFO - Sandbox base directory ensured: /tmp/ai_platform_sandboxes
+2025-05-20 18:42:41,394 - app.utils.logger - INFO - 👋 Docker client shut down.

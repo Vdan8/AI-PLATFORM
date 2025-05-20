@@ -1,5 +1,5 @@
-# app/api/agent.py
-from fastapi import APIRouter, Depends, status, HTTPException  # Import HTTPException
+# backend/app/api/agent.py
+from fastapi import APIRouter, Depends, status, HTTPException
 from app.models.user import User
 from app.core.auth import get_current_user, has_role
 from app.utils.logger import logger
@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.agent import AgentConfiguration
 from app.schemas.agent import AgentCreate, AgentRead
-from app.exceptions import AgentNameAlreadyExistsError  # Import custom exception
+from app.exceptions import AgentNameAlreadyExistsError
+
+# NEW IMPORTS for Sandbox Testing
+from app.schemas.tool import MCPToolCall, MCPToolResponse # Import tool schemas
+from app.services.sandbox_service import sandbox_service   # Import the sandbox service instance
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -71,3 +75,19 @@ async def create_agent(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create agent",
         )
+
+# =====================================================================
+# NEW: Temporary endpoint to test sandbox execution
+# This is for development and testing purposes. Remove or restrict access
+# in a production environment.
+@router.post("/test-tool-sandbox", response_model=MCPToolResponse, status_code=status.HTTP_200_OK)
+async def test_tool_sandbox_execution(tool_call: MCPToolCall):
+    """
+    Endpoint to test tool execution in the sandbox.
+    Sends an MCPToolCall to the sandbox service for execution.
+    """
+    logger.info(f"Received request to test tool in sandbox: {tool_call.tool_name} (Call ID: {tool_call.call_id or 'N/A'})")
+    response = await sandbox_service.run_tool_in_sandbox(tool_call)
+    logger.info(f"Sandbox response for tool '{tool_call.tool_name}': Status={response.status}")
+    return response
+# =====================================================================

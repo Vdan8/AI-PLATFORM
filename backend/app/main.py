@@ -1,8 +1,11 @@
+# backend/app/main.py
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .api import auth, agent, routes, job, tools  # Import all routers
-from .services import tool_loader
+# CORRECTED IMPORT: Now importing 'tools' (plural) as confirmed
+from .api import auth, agent, routes, job, tools # Import 'tools' (plural)
+
+from app.services.tool_loader import tool_loader_service
 from .core.config import settings
 import logging
 from typing import Dict, Any
@@ -10,6 +13,11 @@ from app.services.sandbox_service import initialize_sandbox, shutdown_sandbox
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
+import json # Added to handle potential JSON parsing of tool output in call_tool
+
+# NEW: Import the tool_registry functions to potentially use them in lifespan if needed
+from app.services.tool_registry import get_tool_definitions, get_single_tool_definition_for_llm
+
 
 # Configure logging
 logging.basicConfig(
@@ -28,30 +36,43 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Starting application...")
 
     try:
-        # 1. Load tools
-        tools: Dict[str, Any] = tool_loader.load_tools()
-        logger.info(f"✅ Loaded {len(tools)} tools")
+        # 1. Warm connections (DB, APIs)
+        await warmup_connections()
 
-        # 2. Verify critical tools
+        # 2. Initialize the sandbox service (Docker client etc.)
+        await initialize_sandbox()
+
+        # 3. Optional: Perform an initial fetch or validation of tools from DB
+        #    This replaces the old tool_loader.load_tools()
+        #    You might want to fetch all tools and store them in app.state for quick access
+        #    or just verify that critical tools exist in the DB.
+
+        # Example: Fetch all tool definitions for validation/initial priming
+        # You'll need to use the tool_loader_service (via tool_registry's get_tool_definitions)
+        # Note: get_tool_definitions now directly pulls from the DB.
+        all_loaded_tools = await get_tool_definitions()
+
+        # Store a simplified dictionary of tool names for app.state.tools for compatibility
+        # (This just gets the names, not the full tool objects/metadata from the old system)
+        # If your frontend/other parts of your app depend on app.state.tools having the full dict
+        # then you'd need to adapt this more deeply. For now, it's a basic list of names.
+        app.state.tools = {tool['function']['name']: tool for tool in all_loaded_tools}
+
+
+        # 4. Verify critical tools (now checks against DB-loaded tools)
         required_tools = getattr(settings, "CRITICAL_TOOLS", [])
-        missing = [t for t in required_tools if t not in tools]
+        missing = [t_name for t_name in required_tools if t_name not in app.state.tools]
         if missing:
             raise RuntimeError(f"Missing critical tools: {missing}")
 
-        # 3. Warm connections (DB, APIs)
-        await warmup_connections()
-
-        # 4. Initialize the sandbox
-        await initialize_sandbox()
-
-        # Store in app state
-        app.state.tools = tools
+        logger.info(f"✅ Loaded {len(app.state.tools)} tools from database and verified critical tools.")
+        logger.info("✅ Application startup complete.")
 
         yield  # ============ Application Runs Here ============
 
     except Exception as e:
         logger.critical(f"🛑 Startup failed: {str(e)}")
-        raise
+        raise # Re-raise to make sure Uvicorn reports failure
 
     finally:
         # ================== Shutdown Logic ==================
@@ -102,7 +123,8 @@ app.include_router(auth.router)
 app.include_router(routes.router)
 app.include_router(agent.router)
 app.include_router(job.router)
-app.include_router(tools.router)
+# CORRECTED ROUTER INCLUDE: Using 'tools.router' as confirmed by your filename
+app.include_router(tools.router, prefix=settings.API_V1_STR + "/tools", tags=["tools"])
 
 # ==================== Endpoints ====================
 @app.get("/")
@@ -111,7 +133,7 @@ async def root():
     return {
         "message": "AI Employee Generator Backend is live",
         "status": "operational",
-        "tools_loaded": len(app.state.tools)
+        "tools_loaded": len(app.state.tools) # This will now be the count of tools from DB
     }
 
 @app.get("/tools")

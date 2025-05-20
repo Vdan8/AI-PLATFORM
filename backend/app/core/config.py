@@ -1,9 +1,11 @@
+# backend/app/core/config.py
 from dotenv import load_dotenv
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import List
 
+# Determine the path to the .env file
 dotenv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.env')
 load_dotenv(dotenv_path=dotenv_path)
 
@@ -18,11 +20,15 @@ class Settings(BaseSettings):
     CRITICAL_TOOLS: List[str] = []  # Add essential tool names here
     ALLOW_TOOL_RELOAD: bool = False  # For development
 
+    # NEWLY ADDED: API Version string
+    API_V1_STR: str = "/api/v1" # This defines the base path for your API endpoints
+
     # ==================== Sandbox Settings ====================
     SANDBOX_BASE_DIR: str = "/tmp/tool_sandboxes"  # Base directory for sandbox folders
     SANDBOX_IMAGE: str = "python:3.9-slim-buster"  # Docker image for tool execution
     SANDBOX_MEM_LIMIT: str = "128m"  # Memory limit for containers (e.g., "128m", "512m")
     SANDBOX_CPU_SHARES: int = 256  # CPU shares for containers (relative weight)
+    SANDBOX_TIMEOUT_SECONDS: int = 30 # Max execution time for a tool in seconds
 
     # New auth/database settings (all optional with defaults)
     DATABASE_URL: str = "postgresql+asyncpg://user:pass@localhost/dbname" # Default for local dev
@@ -30,7 +36,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "temp-secret-change-me"  # Override via .env in prod
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Add this line
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     @property
     def alembic_url(self) -> str:
@@ -41,7 +47,6 @@ class Settings(BaseSettings):
         if self.ALEMBIC_DATABASE_URL:
             return self.ALEMBIC_DATABASE_URL
         return self.DATABASE_URL.replace("+asyncpg", "")
-
 
     model_config = SettingsConfigDict(
         env_file=".env",

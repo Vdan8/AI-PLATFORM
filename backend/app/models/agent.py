@@ -16,7 +16,7 @@ class AgentConfiguration(Base):
     max_steps = Column(Integer, default=10)
     
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    # owner = relationship("User", back_populates="agents") # We'll uncomment/add this when User model is ready for it
+    owner = relationship("User", back_populates="agents") # We'll uncomment/add this when User model is ready for it
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

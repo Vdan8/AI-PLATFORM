@@ -1,83 +1,97 @@
-# app/services/tool_loader.py
-import importlib.util
-import inspect
-from pathlib import Path
-import yaml
-from typing import Dict, Any, Optional
+# backend/app/services/tool_loader.py
+from sqlalchemy.ext.asyncio import AsyncSession # CORRECTED: Use AsyncSession
+from typing import Dict, List, Optional, Any
+from contextlib import asynccontextmanager
 
-class ToolLoader:
+from app.models.tool import Tool
+from app.schemas.tool import MCPToolDefinition, ToolParameter
+from app.crud.tool import tool_crud
+from app.models.base import get_db as get_async_db_session
+
+class ToolLoaderService:
+    """
+    Manages loading and retrieving tool definitions from the database.
+    This service acts as the central registry for available tools.
+    It replaces the file-based tool loading system.
+    """
+
     def __init__(self):
-        self.tool_dir = Path(__file__).parent.parent / "tools"
-        self._cache = None
+        pass
 
-    def _parse_metadata(self, docstring: str) -> Dict[str, Any]:
-        """Extracts YAML metadata from docstring"""
-        if not docstring or "TOOL_DEFINITION" not in docstring:
-            raise ValueError("Missing TOOL_DEFINITION marker")
-        
-        yaml_content = docstring.split("TOOL_DEFINITION")[1].strip()
-        try:
-            metadata = yaml.safe_load(yaml_content)
-            if not isinstance(metadata, dict):
-                raise ValueError("Metadata must be a dictionary")
-            return metadata
-        except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML: {str(e)}")
+    @asynccontextmanager
+    async def get_db_session(self):
+        """
+        Provides an async context manager for database sessions using the project's get_db.
+        """
+        async for db_session in get_async_db_session():
+            yield db_session
 
-    def _validate_tool_module(self, module, metadata: Optional[Dict[str, Any]] = None) -> bool:
-        """Flexible validation supporting both old and new tools"""
-        # Try preferred function names in order
-        for func_name in ["execute", "run"]:
-            if hasattr(module, func_name) and callable(getattr(module, func_name)):
-                if func_name == "run" and metadata is None:
-                    print(f"⚠️ Deprecation: Tool {module.__name__} uses 'run()'. Migrate to 'execute()'")
-                return True
-        raise AttributeError("Tool requires either 'execute()' or 'run()' function")
+    async def get_tool_by_name(self, db: AsyncSession, name: str) -> Optional[Tool]: # CORRECTED: async def
+        """
+        Retrieves a single tool by its name from the database.
+        Returns the SQLAlchemy Tool model instance, which includes its code.
+        """
+        return await tool_crud.get_by_name(db, name) # CORRECTED: await
 
-    def load_tools(self, use_cache: bool = True) -> Dict[str, Any]:
-        """Main loader with comprehensive error handling"""
-        if use_cache and self._cache is not None:
-            return self._cache
-            
-        tools = {}
-        
-        for tool_file in self.tool_dir.glob("*.py"):
-            if tool_file.name.startswith("_"):
-                continue
-                
-            module_name = f"app.tools.{tool_file.stem}"
-            spec = importlib.util.spec_from_file_location(module_name, str(tool_file))
-            module = importlib.util.module_from_spec(spec)
-            
-            try:
-                spec.loader.exec_module(module)
-                metadata = None
-                
-                # Parse metadata if available
-                if module.__doc__:
+    async def get_tool_definition_for_llm(self, db: AsyncSession, name: str) -> Optional[MCPToolDefinition]: # CORRECTED: async def
+        """
+        Retrieves a tool by name and converts it into the MCPToolDefinition schema
+        suitable for LLM consumption (e.g., function calling).
+        """
+        db_tool = await self.get_tool_by_name(db, name) # CORRECTED: await
+        if db_tool:
+            llm_parameters = []
+            if isinstance(db_tool.parameters, dict) and "properties" in db_tool.parameters:
+                for param_name, param_schema in db_tool.parameters.get("properties", {}).items():
+                    llm_parameters.append(ToolParameter(
+                        name=param_name,
+                        type=param_schema.get("type", "string"),
+                        description=param_schema.get("description", ""),
+                        required=param_name in db_tool.parameters.get("required", [])
+                    ))
+            elif isinstance(db_tool.parameters, list):
+                for p in db_tool.parameters:
                     try:
-                        metadata = self._parse_metadata(module.__doc__)
-                    except ValueError as e:
-                        print(f"⚠️ Metadata error in {tool_file.stem}: {str(e)}")
-                
-                self._validate_tool_module(module, metadata)
-                
-                tool_name = metadata["name"] if metadata else tool_file.stem
-                tools[tool_name] = {
-                    "function": getattr(module, "execute", None) or getattr(module, "run"),
-                    "metadata": metadata or {"name": tool_name},
-                    "module": module_name
-                }
-                
-            except Exception as e:
-                print(f"⚠️ Failed to load {tool_file.stem}: {str(e)}")
-                continue
-                
-        self._cache = tools
-        return tools
+                        llm_parameters.append(ToolParameter(**p))
+                    except Exception as e:
+                        print(f"Warning: Could not parse parameter {p} for tool {name}: {e}")
+            
+            return MCPToolDefinition(
+                name=db_tool.name,
+                description=db_tool.description,
+                parameters=llm_parameters
+            )
+        return None
 
-# Singleton instance
-tool_loader = ToolLoader()
+    async def get_all_tool_definitions_for_llm(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> List[MCPToolDefinition]: # CORRECTED: async def
+        """
+        Retrieves all tool definitions from the database, formatted for LLM consumption.
+        """
+        db_tools = await tool_crud.get_all(db, skip=skip, limit=limit) # CORRECTED: await
+        llm_definitions = []
+        for db_tool in db_tools:
+            llm_parameters = []
+            if isinstance(db_tool.parameters, dict) and "properties" in db_tool.parameters:
+                for param_name, param_schema in db_tool.parameters.get("properties", {}).items():
+                    llm_parameters.append(ToolParameter(
+                        name=param_name,
+                        type=param_schema.get("type", "string"),
+                        description=param_schema.get("description", ""),
+                        required=param_name in db_tool.parameters.get("required", [])
+                    ))
+            elif isinstance(db_tool.parameters, list):
+                for p in db_tool.parameters:
+                    try:
+                        llm_parameters.append(ToolParameter(**p))
+                    except Exception as e:
+                        print(f"Warning: Could not parse parameter {p} for tool {db_tool.name}: {e}")
 
-# Explicit export
-load_tools = tool_loader.load_tools
+            llm_definitions.append(MCPToolDefinition(
+                name=db_tool.name,
+                description=db_tool.description,
+                parameters=llm_parameters
+            ))
+        return llm_definitions
+
+# Instantiate the service for easy import
+tool_loader_service = ToolLoaderService()
