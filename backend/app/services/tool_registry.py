@@ -13,6 +13,23 @@ from sqlalchemy.ext.asyncio import AsyncSession # For type hinting the db sessio
 
 logger = logging.getLogger(__name__)
 
+# This function should be outside the class
+def extract_python_code(code_string: str) -> str:
+    """
+    Extracts pure Python code from a string that might contain Markdown code blocks.
+    Removes leading/trailing '```python' and '```'.
+    """
+    stripped_code = code_string.strip()
+    if stripped_code.startswith("```python"):
+        stripped_code = stripped_code[len("```python"):].strip()
+        if stripped_code.endswith("```"):
+            stripped_code = stripped_code[:-len("```")].strip()
+    elif stripped_code.startswith("```"): # Handle cases where language specifier is missing
+        stripped_code = stripped_code[len("```"):].strip()
+        if stripped_code.endswith("```"):
+            stripped_code = stripped_code[:-len("```")].strip()
+    return stripped_code
+
 class ToolRegistryService:
     """
     Manages the retrieval, formatting, and execution of tools.
@@ -111,40 +128,61 @@ class ToolRegistryService:
             logger.error(f"Error fetching and formatting tool definitions for LLM: {e}", exc_info=True)
             raise # Re-raise for centralized error handling
 
-    async def call_tool(self, tool_name: str, tool_arguments: dict, tool_call_id: Optional[str] = None) -> Any:
+
+    async def call_tool(self, tool_name: str, tool_arguments: dict, tool_call_id: Optional[str] = None) -> MCPToolResponse:
         """
         Executes the specified tool by delegating to the sandbox service.
+        This method now returns the full MCPToolResponse object directly.
         """
         if tool_call_id is None:
             tool_call_id = str(uuid4()) # Generate a UUID if not provided
 
+        logger.info(f"Delegating tool '{tool_name}' (ID: {tool_call_id}) to sandbox with args: {tool_arguments}")
+
+        # 1. Retrieve the full tool definition first
+        tool_definition: Optional[MCPToolDefinition] = None
+        for tool_def in self._cached_tool_definitions:
+            if tool_def.name == tool_name:
+                tool_definition = tool_def
+                break
+        
+        if tool_definition is None:
+            error_msg = f"Tool '{tool_name}' not found in registry cache for execution."
+            logger.error(error_msg)
+            # Return an MCPToolResponse for consistency, even on this error
+            return MCPToolResponse(
+                tool_name=tool_name,
+                status="error",
+                output=None,
+                error_message=error_msg,
+                call_id=tool_call_id
+            )
+
+        # 2. Extract and sanitize the tool's Python code
+        raw_tool_script_content = tool_definition.code
+        sanitized_tool_script_content = extract_python_code(raw_tool_script_content)
+
+        # 3. Create the MCPToolCall object (without the script field)
         tool_call = MCPToolCall(
             tool_name=tool_name,
             tool_arguments=tool_arguments,
             call_id=tool_call_id,
         )
-        logger.info(f"Delegating tool '{tool_name}' (ID: {tool_call_id}) to sandbox with args: {tool_arguments}")
+        
+        # 4. Pass both the tool_call object AND the sanitized script content
+        # as separate arguments to the sandbox service.
+        response: MCPToolResponse = await self.sandbox.run_tool_in_sandbox(
+            tool_call=tool_call,
+            tool_script_content=sanitized_tool_script_content
+        )
 
-        response: MCPToolResponse = await self.sandbox.run_tool_in_sandbox(tool_call)
-
-        # Corrected: Check response.status == "success" instead of non-existent response.success
+        # Return the entire MCPToolResponse object
         if response.status == "success":
-            try:
-                # Attempt to parse output as JSON, but handle non-JSON strings
-                parsed_output = json.loads(response.output)
-                logger.info(f"Tool '{tool_name}' (ID: {tool_call_id}) executed successfully. Output (JSON): {parsed_output}")
-                return parsed_output
-            except (json.JSONDecodeError, TypeError):
-                logger.debug(
-                    f"Tool '{tool_name}' (ID: {tool_call_id}) output is not JSON, returning raw string: {response.output[:200]}..."
-                )
-                return response.output
+            logger.info(f"Tool '{tool_name}' (ID: {tool_call_id}) executed successfully. Returning full response.")
         else:
-            # Enhanced error handling for tool execution failure
-            error_message = response.error_message or "Unknown error from sandbox."
-            logger.error(f"Tool execution failed for '{tool_name}' (ID: {tool_call_id}): {error_message}")
-            # Raise a specific exception that can be caught by the orchestrator
-            raise RuntimeError(f"Tool execution failed for '{tool_name}': {error_message}")
+            logger.error(f"Tool execution failed for '{tool_name}' (ID: {tool_call_id}). Returning full error response.")
+
+        return response # <--- THIS IS THE KEY CHANGE! Returning the full MCPToolResponse object.
 
 
     async def get_single_tool_definition_for_llm(self, db: AsyncSession, tool_name: str) -> Optional[Dict[str, Any]]:
@@ -153,7 +191,7 @@ class ToolRegistryService:
         """
         try:
             # Use the tool_loader_service to get a single MCPToolDefinition object
-            mcp_tool: Optional[MCPToolDefinition] = await self.tool_loader.get_tool_definition_by_name(db, tool_name)
+            mcp_tool: Optional[MCPToolDefinition] = await self.tool_loader.get_tool_definition_for_llm(db, tool_name) # Corrected to use get_tool_definition_for_llm
 
             if not mcp_tool:
                 logger.warning(f"Tool '{tool_name}' not found in database.")

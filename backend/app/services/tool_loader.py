@@ -1,5 +1,5 @@
 # backend/app/services/tool_loader.py
-from sqlalchemy.ext.asyncio import AsyncSession # CORRECTED: Use AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
 
@@ -26,19 +26,19 @@ class ToolLoaderService:
         async for db_session in get_async_db_session():
             yield db_session
 
-    async def get_tool_by_name(self, db: AsyncSession, name: str) -> Optional[Tool]: # CORRECTED: async def
+    async def get_tool_by_name(self, db: AsyncSession, name: str) -> Optional[Tool]:
         """
         Retrieves a single tool by its name from the database.
         Returns the SQLAlchemy Tool model instance, which includes its code.
         """
-        return await tool_crud.get_by_name(db, name) # CORRECTED: await
+        return await tool_crud.get_by_name(db, name)
 
-    async def get_tool_definition_for_llm(self, db: AsyncSession, name: str) -> Optional[MCPToolDefinition]: # CORRECTED: async def
+    async def get_tool_definition_for_llm(self, db: AsyncSession, name: str) -> Optional[MCPToolDefinition]:
         """
         Retrieves a tool by name and converts it into the MCPToolDefinition schema
         suitable for LLM consumption (e.g., function calling).
         """
-        db_tool = await self.get_tool_by_name(db, name) # CORRECTED: await
+        db_tool = await self.get_tool_by_name(db, name)
         if db_tool:
             llm_parameters = []
             if isinstance(db_tool.parameters, dict) and "properties" in db_tool.parameters:
@@ -55,19 +55,20 @@ class ToolLoaderService:
                         llm_parameters.append(ToolParameter(**p))
                     except Exception as e:
                         print(f"Warning: Could not parse parameter {p} for tool {name}: {e}")
-            
+
             return MCPToolDefinition(
                 name=db_tool.name,
                 description=db_tool.description,
-                parameters=llm_parameters
+                parameters=llm_parameters,
+                code=db_tool.code
             )
         return None
 
-    async def get_all_tool_definitions_for_llm(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> List[MCPToolDefinition]: # CORRECTED: async def
+    async def get_all_tool_definitions_for_llm(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> List[MCPToolDefinition]:
         """
         Retrieves all tool definitions from the database, formatted for LLM consumption.
         """
-        db_tools = await tool_crud.get_all(db, skip=skip, limit=limit) # CORRECTED: await
+        db_tools = await tool_crud.get_all(db, skip=skip, limit=limit)
         llm_definitions = []
         for db_tool in db_tools:
             llm_parameters = []
@@ -89,7 +90,8 @@ class ToolLoaderService:
             llm_definitions.append(MCPToolDefinition(
                 name=db_tool.name,
                 description=db_tool.description,
-                parameters=llm_parameters
+                parameters=llm_parameters, 
+                code=db_tool.code
             ))
         return llm_definitions
 

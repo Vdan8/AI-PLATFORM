@@ -245,7 +245,7 @@ class AgentOrchestratorService:
                             logger.error(f"Unexpected type for db_tool.parameters: {type(db_tool.parameters)} for tool {tool_name}")
                             final_response = {"status": "error", "message": f"Internal error: Malformed tool definition for {tool_name}. Please contact support."}
                             break # Exit loop
-
+                        
                         tool_definition = MCPToolDefinition(
                             name=db_tool.name,
                             description=db_tool.description,
@@ -765,11 +765,13 @@ class AgentOrchestratorService:
         - The function should perform the task described and return its result. The return type should be a JSON-serializable object (dict, list, string, number, boolean).
         - If the tool requires network access, use `aiohttp` or `requests` (if synchronous operations are explicitly allowed and managed). `aiohttp` is preferred for async contexts.
         - Provide ONLY the Python function code. Do NOT include example usage, comments outside the function body, or any other surrounding text (e.g., no markdown fences like ```python```).
+        - Your response MUST contain ONLY the Python function code, enclosed within a single markdown code block (```python ... ```). Do NOT include any other text, explanation, or example usage outside this code block.
 
         Example Structure:
         ```python
         async def {tool_definition.name}({param_args}) -> dict:
             # Your implementation here
+            # For demonstration, a simple placeholder or an example using aiohttp if applicable:
             import aiohttp
             async with aiohttp.ClientSession() as session:
                 response = await session.get("[https://api.example.com](https://api.example.com)")

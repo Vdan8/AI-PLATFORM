@@ -38,6 +38,8 @@ class ToolGenerator:
         The tool's purpose is: "{tool_description}".
         It must strictly adhere to the following asynchronous function signature: `{function_signature}`.
         The function should return a Python native type (e.g., str, int, dict, list, bool).
+        **Crucially, after performing its operation, the function MUST print its final result to standard output (stdout).**
+        If an error occurs, print an error message to stdout as well.
         If a parameter is named 'query', it typically implies searching or retrieving information.
 
         **Constraints:**
@@ -45,7 +47,7 @@ class ToolGenerator:
         - Do NOT include any explanations, comments (unless they are part of the function logic), or text outside the code block.
         - Do NOT include any import statements unless absolutely necessary within the function, as they will be handled by the execution environment. If you do include imports, ensure they are inside the function scope.
         - If the tool requires external libraries (e.g., 'requests' for web access, 'json' for parsing), assume they are available.
-        - Ensure the function returns a value that directly represents the tool's output.
+        - Ensure the function returns a value that directly represents the tool's output. **Remember to also print this final output to stdout.**
 
         Example:
         If the tool definition is for a tool named `searchWeb` with description "Searches the web for a given query" and parameters `query: str`:
@@ -59,9 +61,13 @@ class ToolGenerator:
                 response = requests.get(f"[https://api.example.com/search?q=](https://api.example.com/search?q=){{query}}")
                 response.raise_for_status() # Raise an exception for HTTP errors
                 data = response.json()
-                return data.get("results", "No results found.")
+                result = data.get("results", "No results found.")
+                print(result) # <--- ADDED: Explicitly printing the result
+                return result
             except requests.exceptions.RequestException as e:
-                return f"Error searching web: {e}"
+                error_msg = f"Error searching web: {e}"
+                print(error_msg) # <--- ADDED: Also print errors for debugging
+                return error_msg
         ```
 
         Now, generate the code for the tool named `{tool_name}`:

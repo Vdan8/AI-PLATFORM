@@ -39,7 +39,7 @@ async def main():
     # 1. Prompt that requires NEW TOOL GENERATION (e.g., factorial)
     # The LLM should recognize it doesn't have this capability and generate a tool.
     print("\n--- Test Case 1: Generate a new tool for factorial calculation ---")
-    await send_prompt("I need a tool that can calculate the factorial of a given integer. It should take one integer parameter called 'number'.")
+    await send_prompt("I need a tool that can calculate the factorial of 5. It should take one integer parameter called 'number'.")
     # Give it a moment to process and save the tool
     await asyncio.sleep(2) # Adjust based on your system's speed
 

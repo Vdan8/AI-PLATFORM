@@ -139,9 +139,10 @@ class SandboxService:
         async with get_async_db_session() as db_session:
             yield db_session
 
-    async def run_tool_in_sandbox(self, tool_call: MCPToolCall) -> MCPToolResponse:
+    
+    async def run_tool_in_sandbox(self, tool_call: MCPToolCall, tool_script_content: str) -> MCPToolResponse:
         """
-        Executes a tool within a Docker container sandbox.
+        Executes a tool within a Docker container sandbox using the provided script content.
         """
         if not self._is_initialized or not self._docker_available:
             error_msg = "Sandbox service is not ready. Docker daemon or image is unavailable."
@@ -149,51 +150,34 @@ class SandboxService:
             return MCPToolResponse(
                 tool_name=tool_call.tool_name,
                 status="error",
-                output=None, # Output is None on error
-                error_message=error_msg, # Use the new error_message field
+                output=None,
+                error_message=error_msg,
                 call_id=tool_call.call_id
             )
 
         container = None
         temp_dir = None
-        tool_code = None
+        # tool_code is no longer fetched here, it's passed directly
 
         try:
-            # Get tool code from the database using tool_loader_service
-            async with self._get_db_session_context() as db: # Use the internal context manager
-                # Assuming tool_loader_service.get_tool_by_name exists and returns MCPToolDefinition
-                tool_db_object = await tool_loader_service.get_tool_by_name(db, tool_call.tool_name)
-                if not tool_db_object:
-                    error_msg = f"Tool '{tool_call.tool_name}' not found in the tool registry for execution."
-                    logger.error(error_msg)
-                    return MCPToolResponse(
-                        tool_name=tool_call.tool_name,
-                        status="error",
-                        output=None,
-                        error_message=error_msg,
-                        call_id=tool_call.call_id
-                    )
-                tool_code = tool_db_object.code
-                if not tool_code:
-                    error_msg = f"Tool '{tool_call.tool_name}' has no executable code defined."
-                    logger.error(error_msg)
-                    return MCPToolResponse(
-                        tool_name=tool_call.tool_name,
-                        status="error",
-                        output=None,
-                        error_message=error_msg,
-                        call_id=tool_call.call_id
-                    )
-                logger.debug(f"Retrieved code for tool: {tool_call.tool_name}")
+            if not tool_script_content:
+                error_msg = f"Tool '{tool_call.tool_name}' received no executable script content."
+                logger.error(error_msg)
+                return MCPToolResponse(
+                    tool_name=tool_call.tool_name,
+                    status="error",
+                    output=None,
+                    error_message=error_msg,
+                    call_id=tool_call.call_id
+                )
 
             # Create a temporary directory for the tool script and bind mount it
-            # Ensure sandbox_base_dir is guaranteed to exist by initialize()
             temp_dir = tempfile.mkdtemp(prefix=f"ai_sandbox_{tool_call.tool_name}_", dir=self.sandbox_base_dir)
             tool_script_path_in_host = os.path.join(temp_dir, "tool_script.py")
             tool_script_path_in_container = "/sandbox/tool_script.py"
 
             with open(tool_script_path_in_host, "w") as f:
-                f.write(tool_code)
+                f.write(tool_script_content) # Use the passed tool_script_content
             logger.debug(f"Tool script written to {tool_script_path_in_host}")
 
             # Prepare environment variables for the container
@@ -202,10 +186,9 @@ class SandboxService:
                 "TOOL_NAME": tool_call.tool_name,
                 "TOOL_ARGUMENTS": tool_args_json,
                 # Add any other necessary environment variables for your tools
-                # E.g., API keys, if you inject them this way (use with extreme caution)
             }
 
-            container_name = f"tool-sandbox-{tool_call.call_id or uuid4().hex}" # Use uuid4().hex for random if call_id is None
+            container_name = f"tool-sandbox-{tool_call.call_id or uuid4().hex}"
             docker_image = settings.SANDBOX_IMAGE
 
             volumes = {
@@ -216,7 +199,6 @@ class SandboxService:
 
             logger.info(f"Launching container '{container_name}' for tool '{tool_call.tool_name}' (Call ID: {tool_call.call_id or 'N/A'})")
 
-            # Run the container in a separate thread to not block the event loop
             container = await asyncio.to_thread(
                 self.client.containers.run,
                 image=docker_image,
@@ -225,23 +207,15 @@ class SandboxService:
                 volumes=volumes,
                 environment=env_vars,
                 detach=True,
-                remove=False, # We'll remove explicitly in finally block for more control
-                network_mode="none", # Isolate container from host network
-                mem_limit=f"{settings.SANDBOX_MEMORY_LIMIT_MB}m", # Apply memory limit
-                # cpu_shares is deprecated, use cpu_period/cpu_quota or cpu_count/cpuset_cpus for finer control
-                # For basic CPU limiting, cpu_period and cpu_quota are better.
-                # e.g., cpu_quota=int(settings.SANDBOX_CPU_LIMIT_CORES * 100000), cpu_period=100000
-                # Using cpu_shares as a fallback if specific settings aren't available or preferred.
+                remove=False,
+                network_mode="none",
+                mem_limit=f"{settings.SANDBOX_MEMORY_LIMIT_MB}m",
                 cpu_shares=settings.SANDBOX_CPU_SHARES if hasattr(settings, 'SANDBOX_CPU_SHARES') else None,
-                # Example for cleaner CPU limits:
-                # cpu_quota=int(settings.SANDBOX_CPU_LIMIT_CORES * 100000), # 100% of one CPU = 100000
-                # cpu_period=100000,
             )
             logger.debug(f"Container '{container.id}' for '{tool_call.tool_name}' started successfully.")
 
-            # Wait for the container to exit, with a timeout
             result = await asyncio.to_thread(container.wait, timeout=settings.SANDBOX_MAX_CONTAINER_RUNTIME_SECONDS)
-            exit_code = result.get('StatusCode', -1) # Get status code, default to -1 if not found
+            exit_code = result.get('StatusCode', -1)
 
             stdout_bytes = await asyncio.to_thread(container.logs, stdout=True, stderr=False)
             stderr_bytes = await asyncio.to_thread(container.logs, stdout=False, stderr=True)
@@ -250,12 +224,12 @@ class SandboxService:
             stderr = stderr_bytes.decode('utf-8').strip()
 
             if exit_code == 0:
-                logger.info(f"Tool '{tool_call.tool_name}' (ID: {tool_call.call_id}) executed successfully. Output: {stdout[:500]}...") # Log truncated output
+                logger.info(f"Tool '{tool_call.tool_name}' (ID: {tool_call.call_id}) executed successfully. Output: {stdout}") #[:500]}")
                 return MCPToolResponse(
                     tool_name=tool_call.tool_name,
                     status="success",
                     output=stdout,
-                    error_message=None, # No error message on success
+                    error_message=None,
                     call_id=tool_call.call_id
                 )
             else:
@@ -264,14 +238,14 @@ class SandboxService:
                 return MCPToolResponse(
                     tool_name=tool_call.tool_name,
                     status="error",
-                    output={"stdout": stdout, "stderr": stderr}, # Keep stdout/stderr in output for debugging
+                    output={"stdout": stdout, "stderr": stderr},
                     error_message=error_message,
                     call_id=tool_call.call_id
                 )
 
         except ImageNotFound:
             error_msg = f"Docker image '{docker_image}' not found for tool '{tool_call.tool_name}'. Please ensure it's built/pulled."
-            logger.critical(error_msg) # Critical as this is a setup issue
+            logger.critical(error_msg)
             return MCPToolResponse(
                 tool_name=tool_call.tool_name,
                 status="error",
@@ -280,7 +254,6 @@ class SandboxService:
                 call_id=tool_call.call_id
             )
         except ContainerError as e:
-            # This captures errors if the container itself couldn't start or run the command
             stderr_decoded = e.stderr.decode('utf-8').strip() if e.stderr else "N/A"
             error_msg = f"Container failed to execute tool '{tool_call.tool_name}': {e}. Stderr: {stderr_decoded}"
             logger.error(error_msg)
@@ -293,7 +266,7 @@ class SandboxService:
             )
         except APIError as e:
             error_msg = f"Docker API error during tool '{tool_call.tool_name}' execution: {e}. Check Docker daemon status and permissions."
-            logger.error(error_msg, exc_info=True) # Log traceback for API errors
+            logger.error(error_msg, exc_info=True)
             return MCPToolResponse(
                 tool_name=tool_call.tool_name,
                 status="error",
@@ -304,7 +277,6 @@ class SandboxService:
         except asyncio.TimeoutError:
             error_msg = f"Tool '{tool_call.tool_name}' execution timed out after {settings.SANDBOX_MAX_CONTAINER_RUNTIME_SECONDS} seconds."
             logger.error(error_msg)
-            # Attempt to stop and remove the container if it timed out and is still running
             if container:
                 try:
                     await asyncio.to_thread(container.stop, timeout=5)
@@ -321,7 +293,7 @@ class SandboxService:
             )
         except Exception as e:
             error_msg = f"An unexpected error occurred during tool '{tool_call.tool_name}' execution: {e.__class__.__name__}: {e}"
-            logger.exception(error_msg) # Use exception() for full traceback logging
+            logger.exception(error_msg)
             return MCPToolResponse(
                 tool_name=tool_call.tool_name,
                 status="error",
@@ -330,11 +302,8 @@ class SandboxService:
                 call_id=tool_call.call_id
             )
         finally:
-            # Ensure container is stopped and removed, and temp directory is cleaned
             if container:
                 try:
-                    # Refresh container state before trying to stop/remove
-                    # Using inspect() to get up-to-date status, safer than get() sometimes
                     container_info = await asyncio.to_thread(self.client.api.inspect_container, container.id)
                     if container_info['State']['Running']:
                         logger.debug(f"Stopping running container '{container.id}' for '{tool_call.tool_name}'.")
