@@ -220,7 +220,7 @@ class ToolRegistryService:
         not just the LLM-formatted version.
         """
         try:
-            return await self.tool_loader.get_tool_definition_by_name(db, tool_name)
+            return await self.tool_loader.get_tool_definition_for_llm(db, tool_name)
         except Exception as e:
             logger.error(f"Error retrieving MCPToolDefinition for '{tool_name}': {e}", exc_info=True)
             raise

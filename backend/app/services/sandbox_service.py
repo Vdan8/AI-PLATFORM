@@ -7,13 +7,14 @@ import tempfile
 from contextlib import asynccontextmanager
 import logging
 import platform # For platform-specific Docker checks
+from uuid import uuid4 # Import uuid4 for generating random call_ids
 
 from docker.errors import ImageNotFound, ContainerError, APIError
 from typing import Dict, Any, Union
 
 from app.schemas.tool import MCPToolCall, MCPToolResponse
 from app.core.config import settings
-# from app.utils.logger import logger # Assuming app_logger is the main logger you want to use here
+from app.utils.logger import logger # Assuming app_logger is the main logger you want to use here
 from app.services.tool_loader import tool_loader_service
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.base import get_db as get_async_db_session # Alias to avoid naming conflict with service logger
@@ -55,11 +56,12 @@ class SandboxService:
 
         logger.info("Initializing SandboxService...")
         try:
-            self._check_docker_availability() # Check Docker before proceeding
+            # Run blocking Docker check in a separate thread
+            await asyncio.to_thread(self._check_docker_availability_sync)
 
             if not self._docker_available:
                 # If Docker is not available, we stop initialization and raise.
-                # The _check_docker_availability method already logs the critical error.
+                # The _check_docker_availability_sync method already logs the critical error.
                 raise RuntimeError("Docker daemon is not available. Sandbox service cannot start.")
 
             self.sandbox_base_dir = settings.SANDBOX_BASE_DIR
@@ -76,10 +78,10 @@ class SandboxService:
             logger.critical(f"🛑 An unexpected error occurred during sandbox initialization: {e}")
             raise
 
-    def _check_docker_availability(self):
+    def _check_docker_availability_sync(self):
         """
         Internal method to check if the Docker daemon is running and accessible.
-        This is a blocking call, so it's run via asyncio.to_thread in the initialize method.
+        This is a synchronous call.
         """
         try:
             self.client = docker.from_env()
@@ -118,6 +120,7 @@ class SandboxService:
         if self.client:
             try:
                 # Ensure client is properly closed if it was initialized
+                # client.close() is typically synchronous, so await to_thread
                 await asyncio.to_thread(self.client.close)
                 self.client = None
                 self._is_initialized = False
@@ -132,7 +135,8 @@ class SandboxService:
         Internal context manager for obtaining an async database session.
         Used when the sandbox service needs a DB session independently.
         """
-        async for db_session in get_async_db_session():
+        # get_async_db_session() is already an async context manager, so use async with
+        async with get_async_db_session() as db_session:
             yield db_session
 
     async def run_tool_in_sandbox(self, tool_call: MCPToolCall) -> MCPToolResponse:
@@ -145,7 +149,8 @@ class SandboxService:
             return MCPToolResponse(
                 tool_name=tool_call.tool_name,
                 status="error",
-                output={"error_message": error_msg}, # Use 'error_message' for consistency
+                output=None, # Output is None on error
+                error_message=error_msg, # Use the new error_message field
                 call_id=tool_call.call_id
             )
 
@@ -164,7 +169,8 @@ class SandboxService:
                     return MCPToolResponse(
                         tool_name=tool_call.tool_name,
                         status="error",
-                        output={"error_message": error_msg},
+                        output=None,
+                        error_message=error_msg,
                         call_id=tool_call.call_id
                     )
                 tool_code = tool_db_object.code
@@ -174,7 +180,8 @@ class SandboxService:
                     return MCPToolResponse(
                         tool_name=tool_call.tool_name,
                         status="error",
-                        output={"error_message": error_msg},
+                        output=None,
+                        error_message=error_msg,
                         call_id=tool_call.call_id
                     )
                 logger.debug(f"Retrieved code for tool: {tool_call.tool_name}")
@@ -248,6 +255,7 @@ class SandboxService:
                     tool_name=tool_call.tool_name,
                     status="success",
                     output=stdout,
+                    error_message=None, # No error message on success
                     call_id=tool_call.call_id
                 )
             else:
@@ -256,7 +264,8 @@ class SandboxService:
                 return MCPToolResponse(
                     tool_name=tool_call.tool_name,
                     status="error",
-                    output={"error_message": error_message, "stdout": stdout, "stderr": stderr},
+                    output={"stdout": stdout, "stderr": stderr}, # Keep stdout/stderr in output for debugging
+                    error_message=error_message,
                     call_id=tool_call.call_id
                 )
 
@@ -266,17 +275,20 @@ class SandboxService:
             return MCPToolResponse(
                 tool_name=tool_call.tool_name,
                 status="error",
-                output={"error_message": error_msg, "detail": "Docker image not found"},
+                output=None,
+                error_message=error_msg,
                 call_id=tool_call.call_id
             )
         except ContainerError as e:
             # This captures errors if the container itself couldn't start or run the command
-            error_msg = f"Container failed to execute tool '{tool_call.tool_name}': {e}. Stderr: {e.stderr.decode('utf-8').strip()}"
+            stderr_decoded = e.stderr.decode('utf-8').strip() if e.stderr else "N/A"
+            error_msg = f"Container failed to execute tool '{tool_call.tool_name}': {e}. Stderr: {stderr_decoded}"
             logger.error(error_msg)
             return MCPToolResponse(
                 tool_name=tool_call.tool_name,
                 status="error",
-                output={"error_message": error_msg, "detail": e.stderr.decode('utf-8').strip()},
+                output={"detail": stderr_decoded},
+                error_message=error_msg,
                 call_id=tool_call.call_id
             )
         except APIError as e:
@@ -285,7 +297,8 @@ class SandboxService:
             return MCPToolResponse(
                 tool_name=tool_call.tool_name,
                 status="error",
-                output={"error_message": error_msg, "detail": str(e)},
+                output={"detail": str(e)},
+                error_message=error_msg,
                 call_id=tool_call.call_id
             )
         except asyncio.TimeoutError:
@@ -302,7 +315,8 @@ class SandboxService:
             return MCPToolResponse(
                 tool_name=tool_call.tool_name,
                 status="error",
-                output={"error_message": error_msg, "detail": "Execution timed out. Container likely force-stopped."},
+                output={"detail": "Execution timed out. Container likely force-stopped."},
+                error_message=error_msg,
                 call_id=tool_call.call_id
             )
         except Exception as e:
@@ -311,7 +325,8 @@ class SandboxService:
             return MCPToolResponse(
                 tool_name=tool_call.tool_name,
                 status="error",
-                output={"error_message": error_msg, "detail": str(e)},
+                output={"detail": str(e)},
+                error_message=error_msg,
                 call_id=tool_call.call_id
             )
         finally:
@@ -319,12 +334,13 @@ class SandboxService:
             if container:
                 try:
                     # Refresh container state before trying to stop/remove
-                    current_container = await asyncio.to_thread(self.client.containers.get, container.id)
-                    if current_container.status == 'running':
+                    # Using inspect() to get up-to-date status, safer than get() sometimes
+                    container_info = await asyncio.to_thread(self.client.api.inspect_container, container.id)
+                    if container_info['State']['Running']:
                         logger.debug(f"Stopping running container '{container.id}' for '{tool_call.tool_name}'.")
-                        await asyncio.to_thread(current_container.stop, timeout=5)
+                        await asyncio.to_thread(container.stop, timeout=5)
                     logger.debug(f"Removing container '{container.id}' for '{tool_call.tool_name}'.")
-                    await asyncio.to_thread(current_container.remove)
+                    await asyncio.to_thread(container.remove)
                     logger.debug(f"Container '{container.id}' for '{tool_call.tool_name}' cleaned up successfully.")
                 except docker.errors.NotFound:
                     logger.warning(f"Container '{container.id}' for '{tool_call.tool_name}' not found during cleanup. Possibly already removed.")

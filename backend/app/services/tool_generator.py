@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any
 
 import openai
 from app.core.config import settings
-from app.schemas.tool import MCPToolDefinition, MCPToolParameter # Import the schemas
+from app.schemas.tool import MCPToolDefinition, ToolParameter # Import the schemas
 
 logger = logging.getLogger(__name__)
 
