@@ -1,3 +1,4 @@
+# backend/app/services/tool_registry.py
 import json
 import logging
 from typing import List, Dict, Any, Optional
@@ -22,6 +23,7 @@ class ToolRegistryService:
         # Services that ToolRegistryService depends on (injected as singletons)
         self.tool_loader = tool_loader_service
         self.sandbox = sandbox_service
+        self._cached_tool_definitions: List[MCPToolDefinition] = [] # Cache for raw definitions
 
     async def get_all_tool_definitions_for_llm(self, db: AsyncSession) -> List[Dict[str, Any]]:
         """
@@ -30,7 +32,9 @@ class ToolRegistryService:
         """
         try:
             # Use the tool_loader_service to get MCPToolDefinition objects
+            # It's good practice to refresh the cache here if this is the primary way tools are fetched
             mcp_tool_definitions: List[MCPToolDefinition] = await self.tool_loader.get_all_tool_definitions_for_llm(db)
+            self._cached_tool_definitions = mcp_tool_definitions # Update cache
 
             if not isinstance(mcp_tool_definitions, list):
                 logger.warning(
@@ -220,6 +224,21 @@ class ToolRegistryService:
         except Exception as e:
             logger.error(f"Error retrieving MCPToolDefinition for '{tool_name}': {e}", exc_info=True)
             raise
+
+    # NEW METHOD for AgentOrchestrator to get raw tool definitions for decision making
+    def get_all_tool_definitions_list(self) -> List[MCPToolDefinition]:
+        """
+        Returns a list of all currently cached MCPToolDefinition objects.
+        This is primarily for the AgentOrchestrator's internal decision-making
+        where the raw definition (not the LLM-formatted one) is needed.
+        The cache should be populated by calls to get_all_tool_definitions_for_llm
+        or a dedicated refresh method.
+        """
+        if not self._cached_tool_definitions:
+            logger.warning("Tool registry cache is empty. Call get_all_tool_definitions_for_llm first to populate.")
+            # In a real system, you might trigger a refresh here if cache is empty,
+            # but for this context, assume the LLM formatting call populates it.
+        return self._cached_tool_definitions
 
 
 # Instantiate the service as a singleton for easy import elsewhere

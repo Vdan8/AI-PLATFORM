@@ -4,9 +4,9 @@ import logging
 import json
 import asyncio
 from typing import Any, Dict, Optional, List, Type
-from pydantic import ValidationError, BaseModel, Field, create_model # Added create_model for dynamic Pydantic schema
-from openai import OpenAI, AsyncOpenAI, APIStatusError, APIConnectionError # Explicitly import exceptions
-from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type # For robust retries
+from pydantic import ValidationError, BaseModel, Field, create_model
+from openai import OpenAI, AsyncOpenAI, APIStatusError, APIConnectionError
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
 from app.services.tool_analyzer import tool_analyzer_service, ToolAnalysisResult
 from app.services.tool_generator import tool_generator_service
@@ -14,13 +14,13 @@ from app.services.tool_registry import tool_registry_service
 from app.services.sandbox_service import sandbox_service
 from app.crud.tool import tool_crud
 from app.schemas.tool import MCPToolDefinition, MCPToolParameter, MCPToolCall, MCPToolResponse
-from app.utils.logger import trace_logger_service # Using the consolidated logger
+from app.utils.logger import trace_logger_service
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Define a Pydantic schema for the LLM's parameter extraction output
+# Define a Pydantic schema for the LLM's parameter extraction output (can be reused)
 class ExtractedParameters(BaseModel):
     parameters: Dict[str, Any] = Field(
         ...,
@@ -35,10 +35,9 @@ class AgentOrchestrator:
         self.sandbox = sandbox_service
         self.tool_crud = tool_crud
         self.trace_logger = trace_logger_service
-        self.openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY) # Instantiate client once
+        self.openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
     # --- Retries for LLM API Calls ---
-    # Apply a retry decorator for transient API errors
     @retry(wait=wait_exponential(multiplier=1, min=4, max=10),
            stop=stop_after_attempt(3),
            retry=retry_if_exception_type((APIStatusError, APIConnectionError)),
@@ -57,265 +56,332 @@ class AgentOrchestrator:
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"LLM API call failed after retries: {e}", exc_info=True)
-            raise # Re-raise if all retries fail
+            raise
 
-    async def process_user_prompt(self, user_prompt: str, db_session: Any) -> Dict[str, Any]:
-        self.trace_logger.log_event("Processing User Prompt", {"user_prompt": user_prompt})
-        logger.info(f"Orchestrator processing prompt: '{user_prompt}'")
+    async def process_user_prompt(self, user_prompt: str, db_session: Any, max_iterations: int = 5) -> Dict[str, Any]:
+        """
+        Processes a user prompt, potentially involving sequential tool chaining,
+        tool generation, and conversational responses.
+        """
+        self.trace_logger.log_event("Processing User Prompt (Start Chaining)", {"user_prompt": user_prompt})
+        logger.info(f"Orchestrator processing prompt for chaining: '{user_prompt}'")
 
-        try:
-            # --- Step 1: Analyze the user's prompt ---
-            analysis_result: ToolAnalysisResult = await self.analyzer.analyze_prompt(user_prompt)
-            self.trace_logger.log_event("Prompt Analysis Result", analysis_result.model_dump())
+        current_context = {"user_prompt": user_prompt}
+        thought_history = [] # To track previous LLM thoughts and tool actions
+        final_response = None
 
-            if analysis_result.needs_new_tool_generation:
-                logger.info(f"Analysis indicates new tool generation is needed: {analysis_result.suggested_tool_name}")
+        # Ensure the tool registry is populated with current tools
+        # This call will also populate the internal cache used by get_all_tool_definitions_list
+        await self.registry.get_all_tool_definitions_for_llm(db_session)
 
-                # Create MCPToolDefinition from analysis result
-                mcp_parameters: List[MCPToolParameter] = []
-                if analysis_result.required_parameters:
-                    for param_name, param_type in analysis_result.required_parameters.items():
-                        mcp_parameters.append(MCPToolParameter(
-                            name=param_name,
-                            type=param_type,
-                            description=f"Parameter for {param_name}"
-                        ))
+        for iteration in range(max_iterations):
+            self.trace_logger.log_event("Chaining Iteration Start", {"iteration": iteration, "context": current_context})
+            logger.info(f"--- Chaining Iteration {iteration + 1} ---")
 
-                new_tool_definition = MCPToolDefinition(
-                    name=analysis_result.suggested_tool_name,
-                    description=analysis_result.tool_description,
-                    parameters=mcp_parameters,
-                    code=""
+            try:
+                # --- Step 1: LLM-based Decision Making (What to do next?) ---
+                decision_messages = self._build_decision_prompt(current_context, thought_history)
+                
+                raw_decision_json = await self._call_llm_with_retries(
+                    messages=decision_messages,
+                    response_format={"type": "json_object"},
+                    temperature=0.4 # More deterministic for decision making
                 )
-                self.trace_logger.log_event("Generated MCPToolDefinition from Analysis", new_tool_definition.model_dump())
-
-                # --- Step 2: Generate the Tool Code ---
-                # Use retry mechanism for code generation
-                generated_code = await self._call_llm_with_retries(
-                    messages=[
-                        {"role": "system", "content": self._get_tool_generation_system_prompt(new_tool_definition)},
-                    ],
-                    temperature=0.7 # Higher temperature for creativity in code
-                )
-                self.trace_logger.log_event("Generated Tool Code", {"code_length": len(generated_code) if generated_code else 0, "code_snippet": generated_code[:200] if generated_code else "None"})
-
-                if not generated_code:
-                    logger.error(f"Failed to generate code for tool: {new_tool_definition.name}")
-                    return {"status": "error", "message": f"Could not generate code for the requested tool: {new_tool_definition.name}. Please try again or refine your request."}
-
-                # --- Step 3: Robust Code Validation ---
-                if not self._validate_generated_code(generated_code, new_tool_definition.name):
-                    logger.error(f"Generated code failed robust validation for tool: {new_tool_definition.name}")
-                    return {"status": "error", "message": "Generated tool code failed security/syntax validation. Please try again or contact support."}
-                self.trace_logger.log_event("Code Validation Result", {"status": "passed"})
-
-                new_tool_definition.code = generated_code
-
-                # --- Step 4: Save the new tool to the database ---
+                
                 try:
-                    db_tool = await self.tool_crud.create(db_session, obj_in=new_tool_definition)
-                    logger.info(f"New tool '{db_tool.name}' saved to database with ID: {db_tool.id}")
-                    self.trace_logger.log_event("Tool Saved to DB", {"tool_id": db_tool.id, "tool_name": db_tool.name})
-                except Exception as e:
-                    logger.error(f"Failed to save new tool '{new_tool_definition.name}' to database: {e}", exc_info=True)
-                    return {"status": "error", "message": "Failed to save the newly generated tool. Please try again."}
+                    decision = json.loads(raw_decision_json)
+                    action_type = decision.get("action")
+                    self.trace_logger.log_event("LLM Decision", decision)
+                    logger.info(f"LLM decided: {action_type}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"LLM returned invalid JSON for decision: {raw_decision_json}. Error: {e}")
+                    thought_history.append({"thought": "LLM failed to produce valid decision JSON. Trying a conversational fallback."})
+                    final_response = {"status": "error", "message": "I'm having trouble understanding my next steps. Please rephrase your request."}
+                    break # Exit loop
 
-                # Refresh the tool registry to include the newly added tool
-                await self.registry.get_tool_definitions(db_session)
+                if action_type == "respond":
+                    final_response = {"status": "success", "message": decision.get("response_message", "Action completed.")}
+                    logger.info(f"LLM decided to respond: {final_response['message']}")
+                    break # Exit loop, task is done
 
-                # --- Step 5: Prepare and Execute the new tool ---
-                tool_args = await self._extract_parameters_from_prompt(user_prompt, new_tool_definition.parameters)
-                if tool_args is None: # Parameter extraction failed
-                     return {"status": "error", "message": "Could not accurately extract parameters for the tool from your request. Please rephrase or provide more details."}
+                elif action_type in ["generate_tool", "use_tool"]:
+                    tool_name = decision.get("tool_name")
+                    tool_description = decision.get("description") # Only for generate_tool
+                    llm_suggested_params = decision.get("parameters", {}) # Parameters extracted by LLM decision
 
-                # Check if any REQUIRED parameters are missing from the extracted args
-                missing_required_params = [
-                    p.name for p in new_tool_definition.parameters
-                    if not p.optional and p.name not in tool_args
-                ]
-                if missing_required_params:
-                    logger.warning(f"Missing required parameters for tool '{new_tool_definition.name}': {missing_required_params}")
-                    return {"status": "error", "message": f"I need more information to use the '{new_tool_definition.name}' tool. Please provide values for: {', '.join(missing_required_params)}."}
+                    # --- Determine Tool Definition (new or existing) ---
+                    tool_definition = None
+                    if action_type == "generate_tool":
+                        logger.info(f"Decision: Generate new tool '{tool_name}'")
+                        mcp_parameters: List[MCPToolParameter] = []
+                        if llm_suggested_params:
+                            for param_name, param_info in llm_suggested_params.items():
+                                # Infer type from LLM's structure or default to str
+                                mcp_parameters.append(MCPToolParameter(
+                                    name=param_name,
+                                    type=param_info.get('type', 'str'),
+                                    description=param_info.get('description', f"Parameter for {param_name}"),
+                                    optional=param_info.get('optional', False)
+                                ))
 
-                mcp_tool_call = MCPToolCall(tool_name=new_tool_definition.name, tool_args=tool_args)
-                self.trace_logger.log_event("Executing Tool Call", mcp_tool_call.model_dump())
+                        new_tool_definition_proto = MCPToolDefinition(
+                            name=tool_name,
+                            description=tool_description,
+                            parameters=mcp_parameters,
+                            code=""
+                        )
+                        generated_code = await self._call_llm_with_retries(
+                            messages=[{"role": "system", "content": self._get_tool_generation_system_prompt(new_tool_definition_proto)}],
+                            temperature=0.7
+                        )
 
-                try:
-                    tool_response: MCPToolResponse = await self.sandbox.run_tool_in_sandbox(mcp_tool_call, db_session)
-                    self.trace_logger.log_event("Tool Execution Result", tool_response.model_dump())
-                    if tool_response.success:
-                        return {"status": "success", "tool_output": tool_response.output, "tool_name": new_tool_definition.name}
-                    else:
-                        logger.error(f"Tool '{new_tool_definition.name}' execution failed in sandbox: {tool_response.error_message}")
-                        return {"status": "error", "message": f"The tool '{new_tool_definition.name}' failed to execute: {tool_response.error_message}. Please check logs for details."}
-                except Exception as e:
-                    logger.error(f"Error running tool '{new_tool_definition.name}' in sandbox: {e}", exc_info=True)
-                    return {"status": "error", "message": f"An error occurred while trying to run the tool '{new_tool_definition.name}': {e}"}
+                        if not generated_code or not self._validate_generated_code(generated_code, tool_name):
+                            logger.error(f"Generated code for '{tool_name}' failed validation.")
+                            thought_history.append({"thought": f"Failed to generate valid code for tool '{tool_name}'."})
+                            current_context["last_tool_status"] = "failed_generation"
+                            continue # Try next iteration or change strategy
 
-            else:
-                logger.info("Analysis indicates no new tool generation is needed.")
-                # --- Scenario: No new tool needed / Existing tool identified ---
-                suggested_tool_name = analysis_result.suggested_tool_name
-                if suggested_tool_name:
-                    logger.info(f"Attempting to use existing tool: {suggested_tool_name}")
-                    existing_tool_definition = self.registry.get_tool_by_name(suggested_tool_name)
+                        new_tool_definition_proto.code = generated_code
+                        db_tool = await self.tool_crud.create(db_session, obj_in=new_tool_definition_proto)
+                        tool_definition = db_tool
+                        self.trace_logger.log_event("New Tool Generated & Saved", {"tool_name": tool_definition.name})
+                        await self.registry.get_all_tool_definitions_for_llm(db_session) # Refresh registry cache
 
-                    if existing_tool_definition:
-                        self.trace_logger.log_event("Existing Tool Identified", existing_tool_definition.model_dump())
+                    elif action_type == "use_tool":
+                        logger.info(f"Decision: Use existing tool '{tool_name}'")
+                        # Use the new method to get raw MCPToolDefinition
+                        tool_definition = await self.registry.get_tool_by_name(db_session, tool_name)
+                        if not tool_definition:
+                            logger.warning(f"Tool '{tool_name}' not found in registry.")
+                            thought_history.append({"thought": f"Tool '{tool_name}' was suggested but not found."})
+                            current_context["last_tool_status"] = "tool_not_found"
+                            continue # Try next iteration or change strategy
 
-                        tool_args = await self._extract_parameters_from_prompt(user_prompt, existing_tool_definition.parameters)
-                        if tool_args is None: # Parameter extraction failed
-                            return {"status": "error", "message": "Could not accurately extract parameters for the existing tool from your request. Please rephrase or provide more details."}
+                    if not tool_definition:
+                        final_response = {"status": "error", "message": f"Could not find or generate tool: {tool_name}. Please refine your request."}
+                        break
 
-                        # Check if any REQUIRED parameters are missing from the extracted args
-                        missing_required_params = [
-                            p.name for p in existing_tool_definition.parameters
-                            if not p.optional and p.name not in tool_args
-                        ]
-                        if missing_required_params:
-                            logger.warning(f"Missing required parameters for existing tool '{existing_tool_definition.name}': {missing_required_params}")
-                            return {"status": "error", "message": f"I need more information to use the '{existing_tool_definition.name}' tool. Please provide values for: {', '.join(missing_required_params)}."}
+                    # --- Step 2: Extract / Confirm Parameters for current tool ---
+                    extracted_tool_args = await self._extract_parameters_for_next_step(
+                        user_prompt, # Original prompt for broader context
+                        tool_definition.parameters,
+                        llm_suggested_params, # Parameters from LLM's decision
+                        current_context # Context from previous tool output/states
+                    )
+                    
+                    if extracted_tool_args is None:
+                        logger.warning(f"Failed to extract or validate parameters for tool '{tool_definition.name}'.")
+                        thought_history.append({"thought": f"Failed to extract valid parameters for tool '{tool_definition.name}'."})
+                        current_context["last_tool_status"] = "failed_param_extraction"
+                        continue # Try next iteration or change strategy
 
-                        mcp_tool_call = MCPToolCall(tool_name=existing_tool_definition.name, tool_args=tool_args)
-                        self.trace_logger.log_event("Executing Existing Tool Call", mcp_tool_call.model_dump())
+                    # Check for missing required parameters (same logic as before)
+                    missing_required_params = [p.name for p in tool_definition.parameters if not p.optional and p.name not in extracted_tool_args]
+                    if missing_required_params:
+                        logger.warning(f"Missing required parameters for tool '{tool_definition.name}': {missing_required_params}")
+                        thought_history.append({"thought": f"Missing required parameters for '{tool_definition.name}': {', '.join(missing_required_params)}. Need to ask user."})
+                        final_response = {"status": "info", "message": f"I need more information to use the '{tool_definition.name}' tool. Please provide values for: {', '.join(missing_required_params)}."}
+                        break # Exit loop for user input
 
-                        try:
-                            tool_response: MCPToolResponse = await self.sandbox.run_tool_in_sandbox(mcp_tool_call, db_session)
-                            self.trace_logger.log_event("Existing Tool Execution Result", tool_response.model_dump())
-                            if tool_response.success:
-                                return {"status": "success", "tool_output": tool_response.output, "tool_name": existing_tool_definition.name}
-                            else:
-                                logger.error(f"Existing tool '{existing_tool_definition.name}' execution failed in sandbox: {tool_response.error_message}")
-                                return {"status": "error", "message": f"The existing tool '{existing_tool_definition.name}' failed to execute: {tool_response.error_message}. Please check logs for details."}
-                        except Exception as e:
-                            logger.error(f"Error running existing tool '{existing_tool_definition.name}' in sandbox: {e}", exc_info=True)
-                            return {"status": "error", "message": f"An error occurred while trying to run the existing tool '{existing_tool_definition.name}': {e}"}
+                    mcp_tool_call = MCPToolCall(tool_name=tool_definition.name, tool_arguments=extracted_tool_args) # Changed tool_args to tool_arguments as per MCPToolCall schema
+                    self.trace_logger.log_event("Executing Tool Call (Chaining)", mcp_tool_call.model_dump())
 
-                    else:
-                        logger.warning(f"Suggested existing tool '{suggested_tool_name}' not found in registry. {analysis_result.tool_description}")
-                        # Fallback to conversational response if tool not found but suggested
-                        # This should ideally be handled by the agent_response directly in a full loop
-                        return {"status": "info", "message": f"I analyzed your request, but the suggested tool '{suggested_tool_name}' was not found. {analysis_result.tool_description}. I can try to help conversationally."}
+                    # --- Step 3: Execute Tool ---
+                    # Use the tool_registry_service.call_tool for execution
+                    tool_raw_output = await self.registry.call_tool(
+                        tool_name=tool_definition.name,
+                        tool_arguments=extracted_tool_args,
+                        tool_call_id=mcp_tool_call.call_id # Pass the generated call_id
+                    )
+                    
+                    # Update current_context with the output
+                    current_context["last_tool_name"] = tool_definition.name
+                    current_context["last_tool_output"] = tool_raw_output
+                    current_context["last_tool_status"] = "success" # Assuming call_tool raises on failure
+                    thought_history.append({"tool": tool_definition.name, "output": tool_raw_output, "status": "success"})
+                    logger.info(f"Tool '{tool_definition.name}' executed successfully. Output: {tool_raw_output}")
+                    # Loop back to decision making for next step
+
                 else:
-                    logger.info("No specific tool suggested by analyzer. Returning conversational response.")
-                    # This is where you would integrate with llm_agent.get_agent_response for general chat
-                    return {"status": "info", "message": analysis_result.tool_description or "I can help with that, but it doesn't require a specific tool at the moment."}
+                    logger.warning(f"LLM returned unknown action type: {action_type}. Falling back to conversational.")
+                    final_response = {"status": "info", "message": "I'm not sure how to proceed with that. Could you clarify?"}
+                    break # Exit loop
 
-        except (APIStatusError, APIConnectionError) as e:
-            logger.error(f"LLM API communication error during orchestration for prompt '{user_prompt}': {e}", exc_info=True)
-            self.trace_logger.log_event("Orchestration LLM API Error", {"error": str(e), "prompt": user_prompt})
-            return {"status": "error", "message": "I'm having trouble communicating with the AI services right now. Please try again shortly."}
-        except Exception as e:
-            logger.error(f"An unexpected error occurred during orchestration for prompt '{user_prompt}': {e}", exc_info=True)
-            self.trace_logger.log_event("Orchestration Unexpected Error", {"error": str(e), "prompt": user_prompt})
-            return {"status": "error", "message": f"An unexpected error occurred while processing your request: {e}. Please contact support."}
+            except RuntimeError as e: # Catch specific tool execution failures
+                logger.error(f"Tool execution failed during chaining for prompt '{user_prompt}' (iteration {iteration}): {e}", exc_info=True)
+                current_context["last_tool_name"] = tool_name
+                current_context["last_tool_error"] = str(e)
+                current_context["last_tool_status"] = "failed"
+                thought_history.append({"tool": tool_name, "error": str(e), "status": "failed"})
+                # Decide if a new attempt should be made or if this is unrecoverable
+                # For now, continue to let LLM decide next step based on failure
+                continue 
+            except (APIStatusError, APIConnectionError) as e:
+                logger.error(f"LLM API communication error during chaining for prompt '{user_prompt}': {e}", exc_info=True)
+                self.trace_logger.log_event("Chaining LLM API Error", {"error": str(e), "prompt": user_prompt, "iteration": iteration})
+                final_response = {"status": "error", "message": "I'm having trouble communicating with the AI services during this multi-step process. Please try again shortly."}
+                break
+            except Exception as e:
+                logger.error(f"An unexpected error occurred during chaining for prompt '{user_prompt}' (iteration {iteration}): {e}", exc_info=True)
+                self.trace_logger.log_event("Chaining Unexpected Error", {"error": str(e), "prompt": user_prompt, "iteration": iteration})
+                final_response = {"status": "error", "message": f"An unexpected error occurred while processing your request: {e}. Please contact support."}
+                break
 
-    def _validate_generated_code(self, code: str, expected_function_name: str) -> bool:
+        if final_response:
+            return final_response
+        else:
+            # If loop finishes without explicit "respond" or error, might be max_iterations reached
+            logger.warning(f"Max iterations ({max_iterations}) reached without a final response.")
+            return {"status": "info", "message": "I've reached the maximum number of steps for this request. Could you provide more specific instructions or rephrase?"}
+
+    def _build_decision_prompt(self, current_context: Dict[str, Any], thought_history: List[Dict[str, Any]]) -> List[Dict[str, str]]:
         """
-        Performs robust validation of the generated Python code for security and correctness.
-        Checks for:
-        1. Syntax validity.
-        2. Presence of the expected async function signature.
-        3. Forbidden imports (e.g., 'os', 'subprocess').
-        4. Forbidden function calls (e.g., 'eval', 'exec', 'open').
+        Builds the system prompt for the LLM to decide the next action in the chaining process.
+        The LLM needs to decide whether to:
+        1. GENERATE a new tool.
+        2. USE an existing tool.
+        3. RESPOND directly to the user.
         """
-        try:
-            tree = ast.parse(code) # Parse the code into an Abstract Syntax Tree
+        # Get available tools from registry's cache
+        available_tools_raw = self.registry.get_all_tool_definitions_list()
+        # Format for LLM's internal consideration
+        available_tools_for_llm_consideration = [
+            {"name": tool.name, "description": tool.description, "parameters": [p.model_dump() for p in tool.parameters]}
+            for tool in available_tools_raw
+        ]
+        
+        context_str = json.dumps(current_context, indent=2)
+        history_str = json.dumps(thought_history, indent=2)
 
-            # --- Check 1: Basic Syntax Validity (handled by ast.parse) ---
+        system_message = f"""
+        You are an advanced AI orchestrator. Your goal is to fulfill the user's request by intelligently deciding the next best action.
+        You can either:
+        1. GENERATE a new tool.
+        2. USE an existing tool.
+        3. RESPOND directly to the user.
 
-            # --- Check 2: Expected Function Signature ---
-            function_found = False
-            for node in ast.walk(tree):
-                if isinstance(node, ast.AsyncFunctionDef) and node.name == expected_function_name:
-                    function_found = True
-                    # Optional: Further checks on parameter count/names if rigid matching is needed
-                    # Example: param_names = [arg.arg for arg in node.args.args]
-                    break
-            if not function_found:
-                logger.warning(f"Code does not contain the expected async function '{expected_function_name}'.")
-                return False
+        Your decision must be returned as a JSON object, strictly following one of these formats:
 
-            # --- Check 3: Forbidden Imports ---
-            # IMPORTANT: Adjust this list based on your sandbox's explicit permissions and tool requirements.
-            # E.g., if a tool legitimately needs 'requests', remove it from this list.
-            forbidden_modules = {
-                'os', 'sys', 'subprocess', 'shutil', 'threading', 'multiprocessing',
-                'socket', 'http', 'ftplib', 'smtplib', 'imaplib', 'poplib',
-                'paramiko', 'scp', 'pexpect', 'webbrowser', # Potentially dangerous network/system modules
-                # 'requests', 'urllib' # Only forbid if NO network access is allowed for any tool
-            }
+        --- Option 1: GENERATE a new tool ---
+        {{
+            "action": "generate_tool",
+            "tool_name": "suggested_unique_tool_name_in_snake_case",
+            "description": "A clear, concise description of what this new tool will do.",
+            "parameters": {{
+                "param_name_1": {{"type": "str", "description": "Description of param 1", "optional": false}},
+                "param_name_2": {{"type": "int", "description": "Description of param 2", "optional": true}}
+            }}
+        }}
+        (Use this if no existing tool can fulfill the request, or a new, specific capability is required based on user prompt or previous tool outputs.)
 
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    imported_names = []
-                    if isinstance(node, ast.Import):
-                        for n in node.names:
-                            imported_names.append(n.name.split('.')[0]) # Get top-level module name
-                    else: # ast.ImportFrom
-                        if node.module:
-                            imported_names.append(node.module.split('.')[0])
+        --- Option 2: USE an existing tool ---
+        {{
+            "action": "use_tool",
+            "tool_name": "name_of_existing_tool",
+            "parameters": {{
+                "param_name_1": "extracted_value_1",
+                "param_name_2": extracted_value_2
+            }}
+        }}
+        (Use this if an available tool can help. Extract ALL necessary parameters from the user's original prompt or previous tool outputs (from current_context). If a required parameter is missing and cannot be inferred, do NOT choose this action; instead consider asking the user or generating a tool if that's more appropriate.)
 
-                    for name in imported_names:
-                        if name in forbidden_modules:
-                            logger.error(f"Generated code attempts to import forbidden module: '{name}'.")
-                            return False
+        --- Option 3: RESPOND directly to the user ---
+        {{
+            "action": "respond",
+            "response_message": "A clear and concise message to the user, indicating the task is complete, or asking for clarification, or stating that the task cannot be fulfilled."
+        }}
+        (Use this if the task is complete, if you need more information from the user, or if you cannot proceed with tools.)
 
-            # --- Check 4: Forbidden Function Calls / Expressions ---
-            # Define a list of function names or attributes that are NOT allowed
-            forbidden_builtins = {'eval', 'exec', 'open', 'input', 'breakpoint', 'compile'}
-            # 'print' can be controlled by sandbox output redirection, often permitted for debugging.
-            # 'exit', 'quit' can also be handled by sandbox resource limits/process management.
-            dangerous_attributes = {'__import__', '__subclasses__', '__globals__', '__closure__', '__bases__', '__mro__', 'system', 'popen', 'read', 'write', 'delete'} # Common dangerous methods
+        --- Current State and Context ---
+        User's Original Prompt: "{current_context.get('user_prompt')}"
+        Previous Tool Output (if any): {current_context.get('last_tool_output', 'None')}
+        Previous Tool Status (if any): {current_context.get('last_tool_status', 'None')}
+        Thought History (past steps, tools used, outcomes): {history_str}
 
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Call):
-                    # Check for direct calls (e.g., eval())
-                    if isinstance(node.func, ast.Name) and node.func.id in forbidden_builtins:
-                        logger.error(f"Generated code attempts to call forbidden built-in function: '{node.func.id}'.")
-                        return False
-                    # Check for attribute calls (e.g., os.system(), file.read())
-                    if isinstance(node.func, ast.Attribute) and node.func.attr in dangerous_attributes:
-                         logger.error(f"Generated code attempts to call dangerous attribute as function: '{node.func.attr}'.")
-                         return False
+        --- Available Tools ---
+        {json.dumps(available_tools_for_llm_consideration, indent=2)}
 
-                # Check for direct attribute access of dangerous dunder methods or properties
-                if isinstance(node, ast.Attribute) and node.attr in dangerous_attributes:
-                    logger.error(f"Generated code attempts to access dangerous attribute: '{node.attr}'.")
-                    return False
-
-            logger.info(f"Generated code for '{expected_function_name}' passed all static validations.")
-            return True
-
-        except SyntaxError as e:
-            logger.error(f"Generated code has a syntax error: {e}", exc_info=True)
-            self.trace_logger.log_event("Code Validation Syntax Error", {"error": str(e), "code_snippet": code[:500]})
-            return False
-        except Exception as e:
-            logger.error(f"Unexpected error during code validation: {e}", exc_info=True)
-            self.trace_logger.log_event("Code Validation Unexpected Error", {"error": str(e), "code_snippet": code[:500]})
-            return False
-
-
-    async def _extract_parameters_from_prompt(self, user_prompt: str, tool_parameters: List[MCPToolParameter]) -> Optional[Dict[str, Any]]:
+        --- Your Task ---
+        Analyze the original prompt, the current context, and the tool history.
+        Based on the current state, decide the SINGLE BEST next action (GENERATE, USE, or RESPOND).
+        Strictly output only the JSON object for your chosen action.
         """
-        Extracts parameter values from the user_prompt using an LLM,
-        respecting whether parameters are optional or required.
-        Returns None if extraction or validation fails critically.
+        return [{"role": "system", "content": system_message}]
+
+    async def _extract_parameters_for_next_step(
+        self,
+        user_prompt: str,
+        tool_parameters: List[MCPToolParameter],
+        llm_suggested_params: Dict[str, Any],
+        current_context: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Extracts or confirms parameter values for a tool during a chaining sequence.
+        Prioritizes LLM-suggested parameters, then attempts to infer from context.
         """
         if not tool_parameters:
-            return {} # No parameters to extract
+            return {}
 
-        # Dynamically build the description of expected parameters for the LLM
+        extracted_params = llm_suggested_params.copy()
+
+        # Try to fill in missing required parameters from `current_context`
+        # This is a basic example; more sophisticated logic might be needed
+        for p in tool_parameters:
+            if p.name not in extracted_params and not p.optional:
+                # Attempt to find value in previous tool output if it's a dict
+                if isinstance(current_context.get("last_tool_output"), dict) and p.name in current_context["last_tool_output"]:
+                    extracted_params[p.name] = current_context["last_tool_output"][p.name]
+                    logger.info(f"Filled missing required parameter '{p.name}' from last tool output.")
+                # You could add more sophisticated logic here, e.g., using another LLM call
+                # with a more targeted prompt for parameter extraction given context.
+                # For now, if a required param is missing, it will fail validation below.
+
+        # Dynamic Pydantic model for strict validation
+        dynamic_model_fields = {}
+        for p in tool_parameters:
+            python_type_map = {
+                'str': str, 'int': int, 'float': float, 'bool': bool,
+                'list': List[Any], 'dict': Dict[str, Any]
+            }
+            param_python_type = python_type_map.get(p.type.lower(), str)
+            if p.optional:
+                dynamic_model_fields[p.name] = (Optional[param_python_type], None)
+            else:
+                dynamic_model_fields[p.name] = (param_python_type, ...)
+
+        DynamicParamSchema = create_model(
+            f'DynamicParamSchema_{len(tool_parameters)}_{abs(hash(frozenset(p.name for p in tool_parameters)))}',
+            __base__=BaseModel,
+            **dynamic_model_fields
+        )
+
+        try:
+            # Validate what we've gathered so far using the dynamic Pydantic model
+            validated_params = DynamicParamSchema.model_validate(extracted_params)
+            self.trace_logger.log_event("Parameters Validated for Next Step", validated_params.model_dump())
+            return validated_params.model_dump()
+        except ValidationError as e:
+            logger.error(f"Validation error for parameters in next step: {e.errors()}. Extracted: {extracted_params}", exc_info=True)
+            self.trace_logger.log_event("Parameter Validation Error Next Step", {"error": str(e), "extracted_params": extracted_params})
+            return None
+
+    # Renamed the original function for clarity
+    async def _extract_initial_prompt_parameters(self, user_prompt: str, tool_parameters: List[MCPToolParameter]) -> Optional[Dict[str, Any]]:
+        """
+        Extracts parameter values directly from the user_prompt using an LLM.
+        This is for initial, single-step parameter extraction.
+        """
+        if not tool_parameters:
+            return {}
+
         params_description = []
         param_json_schema = {}
-        dynamic_model_fields = {} # For Pydantic's create_model
+        dynamic_model_fields = {}
 
         for p in tool_parameters:
             optional_str = " (optional)" if p.optional else ""
             params_description.append(f"- '{p.name}' ({p.type}){optional_str}: {p.description or 'No specific description provided.'}")
 
-            # Map Python types to JSON schema types for the LLM prompt
             json_type = p.type.lower()
             if json_type == 'str': json_type = 'string'
             elif json_type == 'int': json_type = 'integer'
@@ -324,29 +390,23 @@ class AgentOrchestrator:
 
             param_json_schema[p.name] = {"type": json_type, "description": p.description or f"Value for {p.name}"}
 
-            # For the dynamic Pydantic model:
-            # If optional, use Optional[Type] and default to None. Otherwise, it's required (...).
             python_type_map = {
                 'str': str, 'int': int, 'float': float, 'bool': bool,
-                'list': List[Any], 'dict': Dict[str, Any] # Add more specific types as needed
+                'list': List[Any], 'dict': Dict[str, Any]
             }
-            param_python_type = python_type_map.get(p.type.lower(), str) # Default to str if unknown
+            param_python_type = python_type_map.get(p.type.lower(), str)
 
             if p.optional:
-                dynamic_model_fields[p.name] = (Optional[param_python_type], None) # Optional, defaults to None
+                dynamic_model_fields[p.name] = (Optional[param_python_type], None)
             else:
-                dynamic_model_fields[p.name] = (param_python_type, ...) # Required
+                dynamic_model_fields[p.name] = (param_python_type, ...)
 
-
-        # Create a dynamic Pydantic model for strict validation of LLM's output
         DynamicParamSchema = create_model(
-            f'DynamicParamSchema_{len(tool_parameters)}_{abs(hash(frozenset(p.name for p in tool_parameters)))}', # Unique name
+            f'DynamicParamSchema_{len(tool_parameters)}_{abs(hash(frozenset(p.name for p in tool_parameters)))}',
             __base__=BaseModel,
             **dynamic_model_fields
         )
 
-        # Construct the system prompt for the LLM, emphasizing JSON schema and type correctness
-        # Crucially, add `required` array to JSON schema for LLM to distinguish
         required_params_for_schema = [p.name for p in tool_parameters if not p.optional]
         json_schema_definition = {
             "type": "object",
@@ -387,35 +447,148 @@ class AgentOrchestrator:
             {"role": "user", "content": user_prompt},
         ]
 
-        # ... (rest of the _extract_parameters_from_prompt function - no changes needed below this point) ...
-
-        self.trace_logger.log_event("Parameter Extraction Prompt", {"tool_parameters": [p.model_dump() for p in tool_parameters], "user_prompt": user_prompt})
+        self.trace_logger.log_event("Parameter Extraction Prompt (Initial)", {"tool_parameters": [p.model_dump() for p in tool_parameters], "user_prompt": user_prompt})
         logger.info(f"Extracting parameters for tool with params: {[p.name for p in tool_parameters]} from prompt: '{user_prompt}' using LLM.")
 
         try:
             raw_llm_response_content = await self._call_llm_with_retries(
                 messages=messages,
                 response_format={"type": "json_object"},
-                temperature=0.0 # Make it highly deterministic for extraction
+                temperature=0.0
             )
-            self.trace_logger.log_event("Raw LLM Parameter Extraction Response", {"response": raw_llm_response_content})
+            self.trace_logger.log_event("Raw LLM Parameter Extraction Response (Initial)", {"response": raw_llm_response_content})
 
-            # Attempt to parse directly into the dynamically created Pydantic model
-            # This handles type coercion and validation
             extracted_params_validated = DynamicParamSchema.model_validate_json(raw_llm_response_content)
-            extracted_params = extracted_params_validated.model_dump() # Convert to dict
+            extracted_params = extracted_params_validated.model_dump()
             
-            self.trace_logger.log_event("Extracted Parameters (Validated)", extracted_params)
+            self.trace_logger.log_event("Extracted Parameters (Validated, Initial)", extracted_params)
             return extracted_params
 
         except ValidationError as e:
-            logger.error(f"Pydantic validation error during parameter extraction: {e.errors()}. Raw LLM response: {raw_llm_response_content}", exc_info=True)
-            self.trace_logger.log_event("Parameter Extraction Validation Error", {"error": str(e), "raw_response": raw_llm_response_content})
-            return None # Indicate critical failure in extraction
+            logger.error(f"Pydantic validation error during initial parameter extraction: {e.errors()}. Raw LLM response: {raw_llm_response_content}", exc_info=True)
+            self.trace_logger.log_event("Parameter Extraction Validation Error (Initial)", {"error": str(e), "raw_response": raw_llm_response_content})
+            return None
         except Exception as e:
-            logger.error(f"Unexpected error during parameter extraction LLM call: {e}", exc_info=True)
-            self.trace_logger.log_event("Parameter Extraction Unexpected Error", {"error": str(e), "prompt": user_prompt})
-            return None # Indicate critical failure
+            logger.error(f"Unexpected error during initial parameter extraction LLM call: {e}", exc_info=True)
+            self.trace_logger.log_event("Parameter Extraction Unexpected Error (Initial)", {"error": str(e), "prompt": user_prompt})
+            return None
+
+
+    def _validate_generated_code(self, code: str, expected_function_name: str) -> bool:
+        """
+        Performs robust validation of the generated Python code for security and correctness.
+        Checks for:
+        1. Syntax validity.
+        2. Presence of the expected async function signature.
+        3. Forbidden imports (e.g., 'os', 'subprocess').
+        4. Forbidden function calls (e.g., 'eval', 'exec', 'open').
+        """
+        try:
+            tree = ast.parse(code) # Parse the code into an Abstract Syntax Tree
+
+            # --- Check 1: Basic Syntax Validity (handled by ast.parse) ---
+
+            # --- Check 2: Expected Function Signature ---
+            function_found = False
+            for node in ast.walk(tree):
+                if isinstance(node, ast.AsyncFunctionDef) and node.name == expected_function_name:
+                    function_found = True
+                    break
+            if not function_found:
+                logger.warning(f"Code does not contain the expected async function '{expected_function_name}'.")
+                return False
+
+            # --- Check 3: Forbidden Imports ---
+            forbidden_modules = {
+                'os', 'sys', 'subprocess', 'shutil', 'threading', 'multiprocessing',
+                'socket', 'http', 'ftplib', 'smtplib', 'imaplib', 'poplib',
+                'paramiko', 'scp', 'pexpect', 'webbrowser',
+            }
+
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    imported_names = []
+                    if isinstance(node, ast.Import):
+                        for n in node.names:
+                            imported_names.append(n.name.split('.')[0])
+                    else:
+                        if node.module:
+                            imported_names.append(node.module.split('.')[0])
+
+                    for name in imported_names:
+                        if name in forbidden_modules:
+                            logger.error(f"Generated code attempts to import forbidden module: '{name}'.")
+                            return False
+
+            # --- Check 4: Forbidden Function Calls / Expressions ---
+            forbidden_builtins = {'eval', 'exec', 'open', 'input', 'breakpoint', 'compile'}
+            dangerous_attributes = {'__import__', '__subclasses__', '__globals__', '__closure__', '__bases__', '__mro__', 'system', 'popen', 'read', 'write', 'delete'}
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    if isinstance(node.func, ast.Name) and node.func.id in forbidden_builtins:
+                        logger.error(f"Generated code attempts to call forbidden built-in function: '{node.func.id}'.")
+                        return False
+                    if isinstance(node.func, ast.Attribute) and node.func.attr in dangerous_attributes:
+                         logger.error(f"Generated code attempts to call dangerous attribute as function: '{node.func.attr}'.")
+                         return False
+
+                if isinstance(node, ast.Attribute) and node.attr in dangerous_attributes:
+                    logger.error(f"Generated code attempts to access dangerous attribute: '{node.attr}'.")
+                    return False
+
+            logger.info(f"Generated code for '{expected_function_name}' passed all static validations.")
+            return True
+
+        except SyntaxError as e:
+            logger.error(f"Generated code has a syntax error: {e}", exc_info=True)
+            self.trace_logger.log_event("Code Validation Syntax Error", {"error": str(e), "code_snippet": code[:500]})
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error during code validation: {e}", exc_info=True)
+            self.trace_logger.log_event("Code Validation Unexpected Error", {"error": str(e), "code_snippet": code[:500]})
+            return False
+
+    def _get_tool_generation_system_prompt(self, tool_definition: MCPToolDefinition) -> str:
+        """
+        Constructs the system prompt for the LLM to generate tool code.
+        """
+        parameters_schema = {}
+        for param in tool_definition.parameters:
+            parameters_schema[param.name] = {
+                "type": param.type,
+                "description": param.description,
+                "optional": param.optional
+            }
+        
+        return f"""
+        You are an expert Python developer tasked with writing a self-contained, asynchronous Python function.
+        This function will be used as a tool in an AI agent system.
+        
+        Here is the definition of the tool you need to implement:
+        Name: {tool_definition.name}
+        Description: {tool_definition.description}
+        Parameters: {json.dumps(parameters_schema, indent=2)}
+
+        Constraints:
+        - The function MUST be an `async def` function with the name `{tool_definition.name}`.
+        - The function MUST accept all its parameters as direct arguments, matching the names and types specified.
+        - The function MUST NOT import any modules other than those explicitly allowed by the sandbox (e.g., `requests`, `aiohttp`, `beautifulsoup4`, `numpy`, `pandas`, `scipy`, `matplotlib`, `google.cloud.storage`). Do NOT import `os`, `sys`, `subprocess`, `eval`, `exec`, `open`, etc.
+        - The function should perform the task described and return its result. The return type should be a JSON-serializable object (dict, list, string, number, boolean).
+        - If the tool requires network access, use `aiohttp` or `requests` (if sync operations are allowed, though `aiohttp` is preferred for async contexts).
+        - Provide only the function code. Do NOT include example usage, comments outside the function body, or any other surrounding text.
+
+        Example Structure:
+        ```python
+        async def {tool_definition.name}(param1: str, param2: int) -> dict:
+            # Your implementation here
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                response = await session.get("[https://api.example.com](https://api.example.com)")
+                data = await response.json()
+            return {{"result": data}}
+        ```
+        """
 
 
 # Instantiate the orchestrator for easy import

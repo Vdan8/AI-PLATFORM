@@ -227,3 +227,7 @@ AttributeError: module 'os' has no attribute 'stderr'
 {"timestamp": "2025-05-21T03:24:32.514059", "level": "INFO", "message": "{'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}", "context": null}
 {"timestamp": "2025-05-21T03:24:32.959613", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
 {"timestamp": "2025-05-21T03:24:34.519181", "level": "INFO", "message": "{'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}", "context": null}
+{"timestamp": "2025-05-21T04:42:06.740231", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Shutting down.'}", "context": null}
+{"timestamp": "2025-05-21T15:10:34.066906", "level": "INFO", "message": "{'event_type': 'app_startup', 'message': 'Application is starting up.'}", "context": null}
+{"timestamp": "2025-05-21T15:10:35.658634", "level": "INFO", "message": "{'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}", "context": null}
+{"timestamp": "2025-05-21T15:11:20.380138", "level": "INFO", "message": "{'event_type': 'app_shutdown', 'message': 'Shutting down.'}", "context": null}

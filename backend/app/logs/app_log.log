@@ -89,3 +89,7 @@
 2025-05-21 03:24:32,514 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}: null
 2025-05-21 03:24:32,959 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
 2025-05-21 03:24:34,519 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}: null
+2025-05-21 04:42:06,742 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Shutting down.'}: null
+2025-05-21 15:10:34,067 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup', 'message': 'Application is starting up.'}: null
+2025-05-21 15:10:35,658 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_startup_success', 'message': 'Application startup complete.', 'tools_loaded_count': 0}: null
+2025-05-21 15:11:20,382 - app.utils.logger - INFO - [TRACE] {'event_type': 'app_shutdown', 'message': 'Shutting down.'}: null
