@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.user import User
-from app.core.config import settings
+from backend.config.config import settings
 from passlib.context import CryptContext
 import uuid
 from app.models.base import get_db  # Import get_db here

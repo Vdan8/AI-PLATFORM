@@ -6,8 +6,8 @@ parameters:
     type: string
     required: true
 """
-def execute(args: dict) -> str:
+'''def execute(args: dict) -> str:
     """Processes input data"""
-    return f"Processed: {args['input']}"
+    return f"Processed: {args['input']}"'''
 
 

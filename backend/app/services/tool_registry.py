@@ -1,17 +1,18 @@
 # backend/app/services/tool_registry.py
 import json
 import logging
-from typing import List, Dict, Any, Optional
+import os
+import importlib.util
+from typing import List, Dict, Any, Optional , Callable
 from uuid import uuid4 # For better call_id generation
+import structlog
 
 # Assuming these services/schemas are correctly defined and exist at these paths
 from app.services.tool_loader import tool_loader_service
-from app.services.sandbox_service import sandbox_service
-# Corrected import: MCPToolParameter -> ToolParameter
+from backend.app.services.sandbox_executor import sandbox_service
 from app.schemas.tool import MCPToolCall, MCPToolResponse, MCPToolDefinition, ToolParameter
 from sqlalchemy.ext.asyncio import AsyncSession # For type hinting the db session
-
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # This function should be outside the class
 def extract_python_code(code_string: str) -> str:
@@ -31,6 +32,11 @@ def extract_python_code(code_string: str) -> str:
     return stripped_code
 
 class ToolRegistryService:
+    def add_tool_to_memory_registry(self, tool_name: str, tool_fn: Callable):
+        """
+        Adds a newly loaded tool function to the in-memory registry.
+        """
+        self.memory_tool_map[tool_name] = tool_fn
     """
     Manages the retrieval, formatting, and execution of tools.
     Encapsulates logic for interacting with tool definitions from the database
@@ -42,10 +48,12 @@ class ToolRegistryService:
         self.sandbox = sandbox_service
         self._cached_tool_definitions: List[MCPToolDefinition] = [] # Cache for raw definitions
 
-    async def get_all_tool_definitions_for_llm(self, db: AsyncSession) -> List[Dict[str, Any]]:
+    async def get_llm_tools_for_agent(self, db: AsyncSession) -> List[Dict[str, Any]]:
         """
+        **RENAMED FROM get_all_tool_definitions_for_llm**
         Retrieves all available tool definitions from the database,
         formatted for LLM consumption (e.g., OpenAI function calling).
+        This method is called by the agent orchestrator.
         """
         try:
             # Use the tool_loader_service to get MCPToolDefinition objects
@@ -74,6 +82,8 @@ class ToolRegistryService:
                             json_type = 'boolean'
                         elif json_type == 'float':
                             json_type = 'number'
+                        elif json_type == 'str':
+                            json_type = 'string' 
                         elif json_type == 'list':
                             # For list, define as an array with default string items.
                             # Adjust 'items' type if you have specific list item types.
@@ -161,7 +171,8 @@ class ToolRegistryService:
         # 2. Extract and sanitize the tool's Python code
         raw_tool_script_content = tool_definition.code
         sanitized_tool_script_content = extract_python_code(raw_tool_script_content)
-
+        logger.error(f"🔍 Final tool script for execution:\n{sanitized_tool_script_content}")
+        
         # 3. Create the MCPToolCall object (without the script field)
         tool_call = MCPToolCall(
             tool_name=tool_name,
@@ -208,6 +219,8 @@ class ToolRegistryService:
                         json_type = 'boolean'
                     elif json_type == 'float':
                         json_type = 'number'
+                    elif json_type == 'str': 
+                        json_type = 'string' 
                     elif json_type == 'list':
                         parameters_properties[param.name] = {
                             "type": "array",
@@ -269,11 +282,11 @@ class ToolRegistryService:
         Returns a list of all currently cached MCPToolDefinition objects.
         This is primarily for the AgentOrchestrator's internal decision-making
         where the raw definition (not the LLM-formatted one) is needed.
-        The cache should be populated by calls to get_all_tool_definitions_for_llm
-        or a dedicated refresh method.
+        The cache should be populated by calls to get_llm_tools_for_agent
+        (formerly get_all_tool_definitions_for_llm).
         """
         if not self._cached_tool_definitions:
-            logger.warning("Tool registry cache is empty. Call get_all_tool_definitions_for_llm first to populate.")
+            logger.warning("Tool registry cache is empty. Call get_llm_tools_for_agent first to populate.")
             # In a real system, you might trigger a refresh here if cache is empty,
             # but for this context, assume the LLM formatting call populates it.
         return self._cached_tool_definitions

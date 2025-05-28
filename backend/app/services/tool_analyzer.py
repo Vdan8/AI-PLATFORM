@@ -2,7 +2,7 @@ import logging
 from typing import Optional, Dict, Any
 import openai # We'll use OpenAI's Python client for LLM interaction
 from pydantic import BaseModel, Field # For defining structured data schemas
-from app.core.config import settings # To access your OpenAI API key and LLM model name
+from backend.config.config import settings # To access your OpenAI API key and LLM model name
 
 logger = logging.getLogger(__name__) # Initialize a logger for this module
 

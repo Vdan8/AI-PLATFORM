@@ -2,7 +2,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import declarative_base # No AsyncAttrs import needed here
 from sqlalchemy.ext.asyncio import AsyncAttrs # This is important for your models, not the Base class definition itself
-from app.core.config import settings
+from backend.config.config import settings
 from typing import AsyncGenerator # Import AsyncGenerator
 from contextlib import asynccontextmanager
 

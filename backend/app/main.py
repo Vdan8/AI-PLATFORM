@@ -1,7 +1,7 @@
-import logging
+
 from contextlib import asynccontextmanager
-from typing import Dict, Any, List
-from typing import AsyncGenerator
+from typing import Dict, Any, List, AsyncGenerator
+import logging
 
 from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,12 +12,15 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 from app.api import agent # Assuming this is where agent-related routers are
 from app.schemas.prompt import PromptRequest, PromptResponse # Ensure this file exists and contains these schemas
-from app.core.config import settings
+from backend.config.config import settings
 from app.models.base import Base # Assuming your SQLAlchemy Base is here
 from app.utils.logger import trace_logger_service
-from app.services.sandbox_service import initialize_sandbox_service, shutdown_sandbox_service
+from backend.app.services.sandbox_executor import initialize_sandbox_service, shutdown_sandbox_service
 from app.services.tool_registry import tool_registry_service
 from app.services.agent_orchestrator import agent_orchestrator_service # Import the orchestrator service
+
+
+
 
 # --- Logger Setup ---
 trace_logger = trace_logger_service
@@ -70,7 +73,7 @@ async def lifespan(app: FastAPI):
         # 4. Load tools
         logger.info("Loading and verifying tools from database...")
         async with async_sessionmaker() as session:
-            all_loaded_tools = await tool_registry_service.get_all_tool_definitions_for_llm(session)
+            all_loaded_tools = await tool_registry_service.get_llm_tools_for_agent(session)
 
             # Store tool definitions in app.state for quick access by other parts if needed
             # The orchestrator directly uses tool_registry_service, but this can be helpful.

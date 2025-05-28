@@ -4,15 +4,21 @@ from pydantic import Field, HttpUrl # HttpUrl if you had any URL fields that nee
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 import logging
+from dotenv import load_dotenv
 
-# Get a module-specific logger for config
-logger = logging.getLogger(__name__)
 
 # --- Determine Project Root and .env Path ---
 # This setup assumes your .env file is in the project's root directory,
 # which is two levels up from this config.py file (backend/app/core/).
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOTENV_PATH = os.path.join(PROJECT_ROOT, '.env')
+
+load_dotenv(dotenv_path=DOTENV_PATH)
+
+
+
+# Get a module-specific logger for config
+logger = logging.getLogger(__name__)
 
 # --- Settings Class Definition ---
 class Settings(BaseSettings):
@@ -41,11 +47,25 @@ class Settings(BaseSettings):
     )
 
     # OpenAI API Key - REQUIRED
-    OPENAI_API_KEY: str = Field(..., description="Your OpenAI API key (required).")
+    OPENAI_API_KEY: str = Field(..., description="Your OpenAI API key", validation_alias="MCP_OPENAI_API_KEY")
+
+
+    # NEW: OpenAI Max Retries for Tenacity
+    OPENAI_MAX_RETRIES: int = Field(
+        3, # Default to 3 retries (total 4 attempts including the first)
+        description="Maximum number of retries for OpenAI API calls using tenacity."
+    )
+
     LLM_MODEL: str = Field(
         "gpt-4o",
         description="Default LLM model to use (e.g., 'gpt-4o', 'gpt-3.5-turbo-1106')."
     )
+    ORCHESTRATOR_LLM_RESPONSE_MODEL: str = Field(
+        "gpt-4o", # Explicitly set this as it was used in agent_orchestrator.py
+        description="Specific LLM model used by the Agent Orchestrator for decision making."
+    )
+    ORCHESTRATOR_MAX_ITERATIONS: int = 5
+
 
     # Logging Level
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(

@@ -9,8 +9,8 @@ from app.services.llm_agent import generate_agent_profile
 from app.services.tool_registry import ToolRegistryService # Use the service directly
 from app.services.autonomy_loop import run_autonomous_agent # Assuming this is the orchestrator
 from app.utils.logger import trace_logger_service # Corrected logger import
-from app.core.config import settings
-from app.core.clients import openai_client
+from backend.config.config import settings
+from backend.app.core.llm_clients import openai_client
 from app.models.base import get_db # To get a DB session
 from sqlalchemy.ext.asyncio import AsyncSession # For type hinting DB session
 

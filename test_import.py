@@ -31,7 +31,7 @@ except ImportError as e:
     print(f"Import error (auth): {e}")
 
 try:
-    from backend.app.core.config import Settings
+    from backend.config.config import Settings
     settings = Settings()
     print("Settings initialized successfully")
     print(f"OPENAI_API_KEY from Settings: {settings.OPENAI_API_KEY}")

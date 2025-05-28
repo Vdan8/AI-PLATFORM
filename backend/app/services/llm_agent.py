@@ -1,6 +1,6 @@
 # backend/app/services/llm_agent.py
-from app.core.config import settings
-from app.core.clients import openai_client
+from backend.config.config import settings
+from backend.app.core.llm_clients import openai_client
 
 
 def generate_agent_profile(prompt: str) -> str:

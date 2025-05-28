@@ -14,9 +14,13 @@ from app.models.base import get_db # Correct dependency for database session
 
 # NEW IMPORTS for Sandbox Testing - Keep these IF you need the endpoint for restricted testing
 from app.schemas.tool import MCPToolCall, MCPToolResponse
-from app.services.sandbox_service import sandbox_service
-from app.core.config import settings # Needed to check environment for dev-only endpoints
-
+from backend.app.services.sandbox_executor import sandbox_service
+from backend.config.config import settings # Needed to check environment for dev-only endpoints
+from app.services.planner_agent import PlannerAgentService
+from app.services.tool_registry import tool_registry_service
+from app.utils.logger import trace_logger_service
+from openai import AsyncOpenAI
+from backend.config.config import settings
 
 # --- Logger Setup ---
 # Use standard Python logging for API-level logs (e.g., errors in this module)
@@ -24,6 +28,11 @@ logger = logging.getLogger(__name__)
 # If this file ever directly logs agent *trace* events, you'd import get_trace_logger_instance
 # from app.logger import get_trace_logger_instance
 # trace_logger = get_trace_logger_instance()
+planner_agent = PlannerAgentService(
+    openai_client=AsyncOpenAI(api_key=settings.OPENAI_API_KEY),
+    registry=tool_registry_service,
+    trace_logger=trace_logger_service
+)
 
 
 router = APIRouter(prefix="/agents", tags=["Agents"]) # Consistent tag name
@@ -156,3 +165,31 @@ async def test_tool_sandbox_execution(tool_call: MCPToolCall):
 # async def get_agent(agent_id: int, db: AsyncSession = Depends(get_db)):
 #     # ... logic to fetch agent by ID ...
 #     pass
+    
+@router.get(
+    "/test-planner",
+    status_code=status.HTTP_200_OK,
+    summary="Test Planner Agent",
+    description="Trigger the Planner Agent with a test prompt to validate pipeline integration."
+)
+async def test_planner_route(db: AsyncSession = Depends(get_db)):
+    """
+    Test route for the Planner Agent that simulates a planning call using a static prompt.
+    """
+    context = {
+        "user_prompt": "Summarize this text",
+        "last_tool_output": None,
+        "last_tool_status": None
+    }
+    thought_history = []
+
+    try:
+        plan = await planner_agent.generate_plan_from_prompt(
+            current_context=context,
+            thought_history=thought_history,
+            db_session=db
+        )
+        return {"status": "ok", "plan": plan}
+    except Exception as e:
+        logger.error(f"Planner agent test failed: {e.__class__.__name__}: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}

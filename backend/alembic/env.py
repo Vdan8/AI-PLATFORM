@@ -19,7 +19,7 @@ sys.path.insert(0, project_root)
 
 
 
-from app.core.config import settings # Import application settings
+from backend.config.config import settings # Import application settings
 from app.models.base import Base     # Import Base from where all models inherit
 
 # Import all your models so Base.metadata knows about them

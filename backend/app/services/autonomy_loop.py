@@ -1,5 +1,5 @@
-from app.core.config import settings
-from app.core.clients import openai_client
+from backend.config.config import settings
+from backend.app.core.llm_clients import openai_client
 from app.services.tool_registry import get_tool_definitions, call_tool
 from app.utils.logger import trace_logger_instance
 import json

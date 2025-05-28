@@ -1,4 +1,4 @@
-import docker
+import docker # Import docker library
 import asyncio
 import os
 import shutil
@@ -10,10 +10,10 @@ import platform # For platform-specific Docker checks
 from uuid import uuid4 # Import uuid4 for generating random call_ids
 
 from docker.errors import ImageNotFound, ContainerError, APIError
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union , Optional
 
 from app.schemas.tool import MCPToolCall, MCPToolResponse
-from app.core.config import settings
+from backend.config.config import settings
 from app.utils.logger import logger # Assuming app_logger is the main logger you want to use here
 from app.services.tool_loader import tool_loader_service
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -143,6 +143,7 @@ class SandboxService:
     async def run_tool_in_sandbox(self, tool_call: MCPToolCall, tool_script_content: str) -> MCPToolResponse:
         """
         Executes a tool within a Docker container sandbox using the provided script content.
+        The tool's output is expected to be a JSON object printed to stdout with "status" and "output" fields.
         """
         if not self._is_initialized or not self._docker_available:
             error_msg = "Sandbox service is not ready. Docker daemon or image is unavailable."
@@ -157,7 +158,6 @@ class SandboxService:
 
         container = None
         temp_dir = None
-        # tool_code is no longer fetched here, it's passed directly
 
         try:
             if not tool_script_content:
@@ -214,6 +214,7 @@ class SandboxService:
             )
             logger.debug(f"Container '{container.id}' for '{tool_call.tool_name}' started successfully.")
 
+            # Wait for the container to finish or timeout
             result = await asyncio.to_thread(container.wait, timeout=settings.SANDBOX_MAX_CONTAINER_RUNTIME_SECONDS)
             exit_code = result.get('StatusCode', -1)
 
@@ -222,26 +223,72 @@ class SandboxService:
 
             stdout = stdout_bytes.decode('utf-8').strip()
             stderr = stderr_bytes.decode('utf-8').strip()
+            logger.error(f"🪵 RAW STDOUT for tool '{tool_call.tool_name}':\n{stdout}")
+            logger.error(f"🪵 RAW STDERR for tool '{tool_call.tool_name}':\n{stderr}")
+
+            # --- Parse Tool Output ---
+            parsed_output: Dict[str, Any] = {}
+            tool_status = "error"
+            tool_output: Any = None
+            tool_error_message: Optional[str] = None
 
             if exit_code == 0:
-                logger.info(f"Tool '{tool_call.tool_name}' (ID: {tool_call.call_id}) executed successfully. Output: {stdout}") #[:500]}")
-                return MCPToolResponse(
-                    tool_name=tool_call.tool_name,
-                    status="success",
-                    output=stdout,
-                    error_message=None,
-                    call_id=tool_call.call_id
-                )
+                try:
+                    # Attempt to parse stdout as JSON
+                    parsed_output = json.loads(stdout)
+                    # Expected JSON structure: {"status": "success", "output": <result>}
+                    # Or {"status": "error", "message": <error_details>}
+                    if parsed_output.get("status") == "success":
+                        tool_status = "success"
+                        tool_output = parsed_output.get("output")
+                        logger.info(f"Tool '{tool_call.tool_name}' (ID: {tool_call.call_id}) executed successfully. Parsed Output: {tool_output}")
+                    elif parsed_output.get("status") == "error":
+                        tool_status = "error"
+                        tool_error_message = parsed_output.get("message", "Tool reported an error via JSON but no message was provided.")
+                        tool_output = parsed_output.get("output", stdout) # Include raw stdout as output for debug if available
+                        logger.error(f"Tool '{tool_call.tool_name}' (ID: {tool_call.call_id}) reported error via JSON. Message: {tool_error_message}")
+                    else:
+                        tool_status = "error"
+                        tool_error_message = f"Tool '{tool_call.tool_name}' returned invalid JSON status. Raw stdout: {stdout}"
+                        tool_output = stdout # Store raw stdout if JSON status is invalid
+                        logger.error(tool_error_message)
+                except json.JSONDecodeError:
+                    # Fallback: treat raw stdout as successful output
+                    logger.warning(f"stdout is not valid JSON. Falling back to raw output for tool '{tool_call.tool_name}'. stdout: {stdout[:500]}")
+                    tool_status = "success"
+                    tool_output = stdout
+                    tool_error_message = None
+                except Exception as e:
+                    # Catch any other unexpected errors during parsing
+                    tool_status = "error"
+                    tool_error_message = f"Unexpected error parsing tool '{tool_call.tool_name}' stdout: {e}. Raw stdout: {stdout[:500]}..."
+                    tool_output = stdout
+                    logger.error(tool_error_message)
             else:
-                error_message = f"Tool '{tool_call.tool_name}' failed with exit code {exit_code}. Stderr: {stderr[:500]}..."
-                logger.error(error_message)
-                return MCPToolResponse(
-                    tool_name=tool_call.tool_name,
-                    status="error",
-                    output={"stdout": stdout, "stderr": stderr},
-                    error_message=error_message,
-                    call_id=tool_call.call_id
-                )
+                # Non-zero exit code indicates an error
+                tool_status = "error"
+                # Prioritize stderr, then check for JSON in stderr for structured error messages
+                if stderr:
+                    try:
+                        # Attempt to parse stderr as JSON, as per the tool generation prompt
+                        error_json = json.loads(stderr)
+                        tool_error_message = error_json.get("message", f"Tool failed with exit code {exit_code}. Stderr JSON output: {error_json}")
+                        tool_output = error_json # Store the error JSON as output
+                    except json.JSONDecodeError:
+                        tool_error_message = f"Tool '{tool_call.tool_name}' failed with exit code {exit_code}. Stderr: {stderr[:500]}..."
+                        tool_output = {"stdout": stdout, "stderr": stderr} # Provide both for context
+                else:
+                    tool_error_message = f"Tool '{tool_call.tool_name}' failed with exit code {exit_code}. No stderr output. Stdout: {stdout[:500]}..."
+                    tool_output = {"stdout": stdout, "stderr": stderr} # Provide both for context
+                logger.error(tool_error_message)
+
+            return MCPToolResponse(
+                tool_name=tool_call.tool_name,
+                status=tool_status,
+                output=tool_output,
+                error_message=tool_error_message,
+                call_id=tool_call.call_id
+            )
 
         except ImageNotFound:
             error_msg = f"Docker image '{docker_image}' not found for tool '{tool_call.tool_name}'. Please ensure it's built/pulled."
@@ -260,7 +307,7 @@ class SandboxService:
             return MCPToolResponse(
                 tool_name=tool_call.tool_name,
                 status="error",
-                output={"detail": stderr_decoded},
+                output={"detail": stderr_decoded, "stdout": stdout}, # Include stdout for more context
                 error_message=error_msg,
                 call_id=tool_call.call_id
             )
@@ -304,6 +351,7 @@ class SandboxService:
         finally:
             if container:
                 try:
+                    # Inspect container to check its state before attempting stop/remove
                     container_info = await asyncio.to_thread(self.client.api.inspect_container, container.id)
                     if container_info['State']['Running']:
                         logger.debug(f"Stopping running container '{container.id}' for '{tool_call.tool_name}'.")
