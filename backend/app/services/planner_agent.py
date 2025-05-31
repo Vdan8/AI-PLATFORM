@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 from typing import Any, Dict, List, Optional, Union
 from openai import AsyncOpenAI, APIStatusError, APIConnectionError, InternalServerError, RateLimitError, APITimeoutError
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_log, after_log
@@ -197,8 +198,28 @@ class PlannerAgentService:
             }
 
         elif raw_llm_response_message.content:
+            raw_content = raw_llm_response_message.content
+            logger.debug(f"Planner: Raw LLM content for decision (non-tool call): {raw_content}")
+
+            # --- START FIX FOR INVALID JSON ---
+            json_string = None
+            # Attempt to extract JSON from a markdown code block (e.g., ```json { ... } ```)
+            json_match = re.search(r'```json\s*(\{.*\})\s*```', raw_content, re.DOTALL)
+            if json_match:
+                json_string = json_match.group(1)
+                logger.debug(f"Planner: Extracted JSON string from markdown: {json_string}")
+            else:
+                # If no markdown block, assume the entire content is JSON
+                json_string = raw_content
+                logger.debug("Planner: No JSON markdown block found. Attempting to parse raw content as JSON.")
+            # --- END FIX FOR INVALID JSON ---
+
             try:
-                decision = json.loads(raw_llm_response_message.content)
+                if json_string: # Only attempt to load if we have a string to load
+                    decision = json.loads(json_string)
+                else: # Fallback if no string was extracted (shouldn't happen with default="{}")
+                    raise json.JSONDecodeError("No JSON string extracted from LLM response.", raw_content, 0)
+
                 action_type = decision.get("action")
                 logger.info(f"Planner: LLM decided (via JSON content): {action_type}")
                 await self.trace_logger.log_event("Planner: LLM Decision", decision)
@@ -223,10 +244,10 @@ class PlannerAgentService:
                     return {"action": "respond", "response_message": "I'm not sure how to proceed with that. Could you clarify?"}
 
             except json.JSONDecodeError as e:
-                logger.error(f"Planner: LLM returned invalid JSON for decision: {raw_llm_response_message.content}. Error: {e}")
+                logger.error(f"Planner: LLM returned invalid JSON for decision: {raw_content}. Error: {e}")
                 return {"action": "error", "message": "I'm having trouble understanding my next steps. Please rephrase your request."}
         else:
             logger.error("Planner: LLM returned no content and no tool calls. Cannot proceed.")
             return {"action": "error", "message": "The AI did not provide a clear response. Please try again."}
-        
-        
+
+

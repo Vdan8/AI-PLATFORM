@@ -79,7 +79,7 @@ Make sure it's ready to be saved to app/tools/tool_{tool_name}.py
             return None
 
     def _extract_code_block(self, text: str) -> Optional[str]:
-        match = re.search(r"``````", text, re.DOTALL)
+        match = re.search(r"```(.*)```", text, re.DOTALL)
         return match.group(1).strip() if match else None
     
     # Instantiate the service as a singleton for easy import elsewhere

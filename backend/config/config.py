@@ -133,7 +133,7 @@ class Settings(BaseSettings):
                     "This directory will be created if it doesn't exist."
     )
     SANDBOX_IMAGE: str = Field(
-        "your-sandbox-python-image:latest", # IMPORTANT: Customize this to your actual Docker image name!
+        "python:3.11-slim-bookworm", # IMPORTANT: Customize this to your actual Docker image name!
         description="Docker image to use for sandbox containers. "
                     "Ensure this image is built and available on your Docker host."
     )
